@@ -124,12 +124,14 @@ struct DrawingScreen: View {
             }
         }
         .sheet(isPresented: $showingSettings) {
-            GeneratorSettingsView(
-                configuration: $viewModel.aiConfiguration,
-                onUserColorChanged: {
-                    viewModel.updateToolColor()
-                }
-            )
+            NavigationView {
+                GeneratorSettingsView(
+                    configuration: $viewModel.aiConfiguration,
+                    onUserColorChanged: {
+                        viewModel.updateToolColor()
+                    }
+                )
+            }
         }
     }
 }
