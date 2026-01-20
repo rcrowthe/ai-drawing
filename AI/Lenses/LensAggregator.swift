@@ -82,21 +82,13 @@ class LensAggregator {
     private func combine(analyses: [LensAnalysis]) -> [(AIMoveType, Double)] {
         var moveScores: [AIMoveType: Double] = [:]
 
-        // FORCE VARIETY: Start with baseline scores for ALL move types
-        moveScores[.echo] = 0.3
-        moveScores[.texture] = 0.3
-        moveScores[.structural] = 0.3
-        moveScores[.contrast] = 0.3
-        moveScores[.predictive] = 0.3
-        moveScores[.surprise] = 0.3
-
         for analysis in analyses {
             for (moveType, confidence) in analysis.suggestedMoveTypes {
                 // Weighted confidence = confidence * urgency * lens weight
                 let weightedConfidence = confidence * analysis.urgency
 
-                // Accumulate scores (adds to baseline)
-                moveScores[moveType, default: 0.3] += weightedConfidence
+                // Accumulate scores
+                moveScores[moveType, default: 0.0] += weightedConfidence
             }
         }
 

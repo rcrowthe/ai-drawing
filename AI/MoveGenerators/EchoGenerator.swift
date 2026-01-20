@@ -17,12 +17,16 @@ class EchoGenerator {
         canvasState: CanvasState,
         state: AIState
     ) -> AIMove? {
-        print("🔊 EchoGenerator: Starting generation")
+        print("🔊 EchoGenerator: stroke start=(\(userStroke.startPoint.x), \(userStroke.startPoint.y)) end=(\(userStroke.endPoint.x), \(userStroke.endPoint.y))")
 
-        // Work directly with stroke geometry instead of reconstructing PKStroke
-        let offset: CGFloat = state.attentionMode == .wander ? 30.0 : 15.0
+        // Create a wavy echo that mimics the stroke with organic variation
+        let offset: CGFloat = state.attentionMode == .wander
+            ? GeneratorParameters.Echo.baseOffsetWander
+            : GeneratorParameters.Echo.baseOffsetFocus
 
-        // Create parallel stroke using start/end points
+        // Vary the offset randomly to spread out multiple echoes
+        let randomizedOffset = offset + CGFloat.random(in: -10.0...10.0)
+
         let dx = userStroke.endPoint.x - userStroke.startPoint.x
         let dy = userStroke.endPoint.y - userStroke.startPoint.y
         let length = hypot(dx, dy)
@@ -32,33 +36,36 @@ class EchoGenerator {
             return nil
         }
 
-        // Perpendicular offset
-        let perpX = -dy / length * offset
-        let perpY = dx / length * offset
-
-        let offsetStart = CGPoint(
-            x: userStroke.startPoint.x + perpX,
-            y: userStroke.startPoint.y + perpY
-        )
-        let offsetEnd = CGPoint(
-            x: userStroke.endPoint.x + perpX,
-            y: userStroke.endPoint.y + perpY
-        )
+        // Perpendicular offset direction
+        let perpX = -dy / length
+        let perpY = dx / length
 
         var controlPoints: [PKStrokePoint] = []
-        let segments = 8
+        let segments = GeneratorParameters.Echo.segments
 
         for i in 0...segments {
             let t = CGFloat(i) / CGFloat(segments)
-            let x = offsetStart.x + (offsetEnd.x - offsetStart.x) * t
-            let y = offsetStart.y + (offsetEnd.y - offsetStart.y) * t
+
+            // Base position along stroke
+            let baseX = userStroke.startPoint.x + dx * t
+            let baseY = userStroke.startPoint.y + dy * t
+
+            // Add wave variation to make it organic (mimics curvature)
+            let wave = sin(t * .pi * 2) * GeneratorParameters.Echo.waveAmplitude
+            let currentOffset = randomizedOffset + wave
+
+            let x = baseX + perpX * currentOffset
+            let y = baseY + perpY * currentOffset
 
             let point = PKStrokePoint(
                 location: CGPoint(x: x, y: y),
                 timeOffset: TimeInterval(i) * 0.01,
-                size: CGSize(width: 5.0, height: 5.0),
-                opacity: 1.0,
-                force: 0.7,
+                size: CGSize(
+                    width: GeneratorParameters.Echo.pointSize,
+                    height: GeneratorParameters.Echo.pointSize
+                ),
+                opacity: GeneratorParameters.Echo.opacity,
+                force: GeneratorParameters.Echo.force,
                 azimuth: 0,
                 altitude: .pi / 4
             )
@@ -76,10 +83,10 @@ class EchoGenerator {
         return AIMove(
             moveType: .echo,
             path: path,
-            tool: PKInkingTool(.marker, color: .cyan, width: 6.0),
+            tool: PKInkingTool(.pen, color: GeneratorColors.echoColor, width: GeneratorParameters.Echo.strokeWidth),
             metadata: [
                 "originalStrokeId": userStroke.id.uuidString,
-                "offset": offset
+                "offset": randomizedOffset
             ]
         )
     }

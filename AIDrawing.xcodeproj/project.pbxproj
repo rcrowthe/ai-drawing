@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		9426DF3E2F1F16320094CE33 /* GeneratorParameters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9426DF3D2F1F16320094CE33 /* GeneratorParameters.swift */; };
+		9426DF402F1FCE000094CE33 /* GeneratorSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9426DF3F2F1FCE000094CE33 /* GeneratorSettingsView.swift */; };
+		9426DF422F1FD6260094CE33 /* GeneratorColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9426DF412F1FD6260094CE33 /* GeneratorColors.swift */; };
 		94474FE42F1EFD5E0032AB8C /* AIDecisionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94474FB12F1EFD5E0032AB8C /* AIDecisionEngine.swift */; };
 		94474FE52F1EFD5E0032AB8C /* AIDrawingApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94474FCA2F1EFD5E0032AB8C /* AIDrawingApp.swift */; };
 		94474FE62F1EFD5E0032AB8C /* HistoryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94474FD82F1EFD5E0032AB8C /* HistoryManager.swift */; };
@@ -45,6 +48,9 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		9426DF3D2F1F16320094CE33 /* GeneratorParameters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneratorParameters.swift; sourceTree = "<group>"; };
+		9426DF3F2F1FCE000094CE33 /* GeneratorSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneratorSettingsView.swift; sourceTree = "<group>"; };
+		9426DF412F1FD6260094CE33 /* GeneratorColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneratorColors.swift; sourceTree = "<group>"; };
 		94474FA02F1EFCE60032AB8C /* aidrawing.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = aidrawing.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		94474FAE2F1EFD5E0032AB8C /* FeatureExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureExtractor.swift; sourceTree = "<group>"; };
 		94474FAF2F1EFD5E0032AB8C /* MLModelManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MLModelManager.swift; sourceTree = "<group>"; };
@@ -160,6 +166,7 @@
 		94474FC62F1EFD5E0032AB8C /* MoveGenerators */ = {
 			isa = PBXGroup;
 			children = (
+				9426DF412F1FD6260094CE33 /* GeneratorColors.swift */,
 				94474FC02F1EFD5E0032AB8C /* ContrastGenerator.swift */,
 				94474FC12F1EFD5E0032AB8C /* EchoGenerator.swift */,
 				94474FC22F1EFD5E0032AB8C /* PredictiveGenerator.swift */,
@@ -181,6 +188,7 @@
 		94474FC92F1EFD5E0032AB8C /* AI */ = {
 			isa = PBXGroup;
 			children = (
+				9426DF3D2F1F16320094CE33 /* GeneratorParameters.swift */,
 				94474FB02F1EFD5E0032AB8C /* CoreML */,
 				94474FB52F1EFD5E0032AB8C /* DecisionEngine */,
 				94474FB92F1EFD5E0032AB8C /* Learning */,
@@ -281,6 +289,7 @@
 		94474FE22F1EFD5E0032AB8C /* Screens */ = {
 			isa = PBXGroup;
 			children = (
+				9426DF3F2F1FCE000094CE33 /* GeneratorSettingsView.swift */,
 				94474FE02F1EFD5E0032AB8C /* ControlPanelView.swift */,
 				94474FE12F1EFD5E0032AB8C /* DrawingScreen.swift */,
 			);
@@ -370,6 +379,8 @@
 				94474FE42F1EFD5E0032AB8C /* AIDecisionEngine.swift in Sources */,
 				94474FE52F1EFD5E0032AB8C /* AIDrawingApp.swift in Sources */,
 				94474FE62F1EFD5E0032AB8C /* HistoryManager.swift in Sources */,
+				9426DF402F1FCE000094CE33 /* GeneratorSettingsView.swift in Sources */,
+				9426DF3E2F1F16320094CE33 /* GeneratorParameters.swift in Sources */,
 				94474FE72F1EFD5E0032AB8C /* FeatureExtractor.swift in Sources */,
 				94474FE82F1EFD5E0032AB8C /* LensProtocol.swift in Sources */,
 				94474FE92F1EFD5E0032AB8C /* LensAggregator.swift in Sources */,
@@ -402,6 +413,7 @@
 				944750042F1EFD5E0032AB8C /* AIConfiguration.swift in Sources */,
 				944750052F1EFD5E0032AB8C /* DrawingScreen.swift in Sources */,
 				944750062F1EFD5E0032AB8C /* PersistenceService.swift in Sources */,
+				9426DF422F1FD6260094CE33 /* GeneratorColors.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

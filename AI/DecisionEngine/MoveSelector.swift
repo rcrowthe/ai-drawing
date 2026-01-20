@@ -83,25 +83,25 @@ class MoveSelector {
     private func weightedRandomSelect(_ suggestions: [(AIMoveType, Double)]) -> AIMoveType {
         guard !suggestions.isEmpty else { return .echo }
 
-        // MUCH MORE RANDOM - almost ignore the weights
-        // Give every move type a HUGE random boost to flatten distribution
-        let randomizedSuggestions = suggestions.map { moveType, weight in
-            let randomBoost = Double.random(in: 0.3...3.0)  // Was 0.5-1.5, now 0.3-3.0 for WAY more chaos
-            return (moveType, weight * randomBoost)
-        }
+        // Sort by confidence
+        let sorted = suggestions.sorted { $0.1 > $1.1 }
 
-        // Just pick randomly from randomized suggestions
-        let totalWeight = randomizedSuggestions.map { $0.1 }.reduce(0, +)
+        // Take top 3
+        let topSuggestions = Array(sorted.prefix(3))
+
+        // Calculate total weight
+        let totalWeight = topSuggestions.map { $0.1 }.reduce(0, +)
 
         guard totalWeight > 0 else {
-            return randomizedSuggestions.randomElement()!.0
+            return topSuggestions.first!.0
         }
 
+        // Weighted random selection
         let roll = Double.random(in: 0...totalWeight)
         var cumulative: Double = 0.0
 
         print("🎲 Weighted random roll: \(String(format: "%.2f", roll)) / \(String(format: "%.2f", totalWeight))")
-        for (moveType, weight) in randomizedSuggestions {
+        for (moveType, weight) in topSuggestions {
             cumulative += weight
             print("🎲   - \(moveType): cumulative \(String(format: "%.2f", cumulative))")
             if roll <= cumulative {
@@ -110,7 +110,7 @@ class MoveSelector {
             }
         }
 
-        // Fallback to random
-        return randomizedSuggestions.randomElement()!.0
+        // Fallback to first suggestion
+        return topSuggestions.first!.0
     }
 }

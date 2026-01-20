@@ -72,6 +72,13 @@ struct DrawingScreen: View {
                             .foregroundColor(.primary)
                     }
 
+                    // Eraser tool
+                    Button(action: viewModel.selectEraserTool) {
+                        Image(systemName: "eraser")
+                            .font(.title2)
+                            .foregroundColor(.primary)
+                    }
+
                     Spacer()
 
                     // AI Visibility Toggle (Phase 8)
@@ -117,9 +124,12 @@ struct DrawingScreen: View {
             }
         }
         .sheet(isPresented: $showingSettings) {
-            if let controlPanelVM = controlPanelViewModel {
-                ControlPanelView(viewModel: controlPanelVM)
-            }
+            GeneratorSettingsView(
+                configuration: $viewModel.aiConfiguration,
+                onUserColorChanged: {
+                    viewModel.updateToolColor()
+                }
+            )
         }
     }
 }

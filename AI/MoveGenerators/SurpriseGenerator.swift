@@ -31,12 +31,17 @@ class SurpriseGenerator {
     }
 
     private func generateSpiral(near stroke: Stroke) -> AIMove? {
-        let center = stroke.boundingBox.center
+        // Center at random point in bounding box, not always the center
+        let bounds = stroke.boundingBox
+        let center = CGPoint(
+            x: bounds.midX + CGFloat.random(in: -bounds.width * 0.3...bounds.width * 0.3),
+            y: bounds.midY + CGFloat.random(in: -bounds.height * 0.3...bounds.height * 0.3)
+        )
         var controlPoints: [PKStrokePoint] = []
 
-        let turns: CGFloat = 2.5  // Was 1.5, now 2.5 turns
-        let maxRadius: CGFloat = 80.0  // Was 30, now 80 - MUCH bigger
-        let segments = 30  // Was 20, now 30 - smoother
+        let turns: CGFloat = 1.5
+        let maxRadius: CGFloat = 30.0
+        let segments = 20
 
         for i in 0...segments {
             let t = CGFloat(i) / CGFloat(segments)
@@ -49,9 +54,9 @@ class SurpriseGenerator {
             let point = PKStrokePoint(
                 location: CGPoint(x: x, y: y),
                 timeOffset: TimeInterval(i) * 0.01,
-                size: CGSize(width: 8.0, height: 8.0),  // Was 5.0, now 8.0
+                size: CGSize(width: 3.0, height: 3.0),
                 opacity: 1.0,
-                force: 0.8,
+                force: 0.7,
                 azimuth: 0,
                 altitude: .pi / 4
             )
@@ -63,18 +68,23 @@ class SurpriseGenerator {
         return AIMove(
             moveType: .surprise,
             path: path,
-            tool: PKInkingTool(.marker, color: .systemPurple, width: 12.0),  // Was 8.0, now 12.0
+            tool: PKInkingTool(.pen, color: GeneratorColors.surpriseColor, width: 3.0),
             metadata: ["surpriseType": "spiral"]
         )
     }
 
     private func generateZigzag(near stroke: Stroke) -> AIMove? {
-        let start = stroke.endPoint
+        // Start from random point along stroke (not always the end)
+        let t = CGFloat.random(in: 0.3...0.8)
+        let start = CGPoint(
+            x: stroke.startPoint.x + (stroke.endPoint.x - stroke.startPoint.x) * t,
+            y: stroke.startPoint.y + (stroke.endPoint.y - stroke.startPoint.y) * t
+        )
         var controlPoints: [PKStrokePoint] = []
 
-        let zigCount = 6  // Was 4, now 6
-        let zigWidth: CGFloat = 40.0  // Was 15.0, now 40.0 - MUCH bigger
-        let zigLength: CGFloat = 25.0  // Was 10.0, now 25.0
+        let zigCount = 4
+        let zigWidth: CGFloat = 15.0
+        let zigLength: CGFloat = 10.0
 
         for i in 0...zigCount {
             let x = start.x + CGFloat(i) * zigLength
@@ -83,9 +93,9 @@ class SurpriseGenerator {
             let point = PKStrokePoint(
                 location: CGPoint(x: x, y: y),
                 timeOffset: TimeInterval(i) * 0.01,
-                size: CGSize(width: 8.0, height: 8.0),  // Was 5.0, now 8.0
+                size: CGSize(width: 3.0, height: 3.0),
                 opacity: 1.0,
-                force: 0.8,
+                force: 0.7,
                 azimuth: 0,
                 altitude: .pi / 3
             )
@@ -97,17 +107,22 @@ class SurpriseGenerator {
         return AIMove(
             moveType: .surprise,
             path: path,
-            tool: PKInkingTool(.marker, color: .systemPurple, width: 12.0),  // Was 8.0, now 12.0
+            tool: PKInkingTool(.pen, color: GeneratorColors.surpriseColor, width: 3.0),
             metadata: ["surpriseType": "zigzag"]
         )
     }
 
     private func generateLoop(near stroke: Stroke) -> AIMove? {
-        let center = stroke.endPoint
+        // Center at random point along stroke (not always the end)
+        let t = CGFloat.random(in: 0.2...0.8)
+        let center = CGPoint(
+            x: stroke.startPoint.x + (stroke.endPoint.x - stroke.startPoint.x) * t,
+            y: stroke.startPoint.y + (stroke.endPoint.y - stroke.startPoint.y) * t
+        )
         var controlPoints: [PKStrokePoint] = []
 
-        let radius: CGFloat = 50.0  // Was 20.0, now 50.0 - MUCH bigger
-        let segments = 16  // Was 12, now 16
+        let radius: CGFloat = 20.0
+        let segments = 12
 
         for i in 0...segments {
             let t = CGFloat(i) / CGFloat(segments)
@@ -119,9 +134,9 @@ class SurpriseGenerator {
             let point = PKStrokePoint(
                 location: CGPoint(x: x, y: y),
                 timeOffset: TimeInterval(i) * 0.01,
-                size: CGSize(width: 8.0, height: 8.0),  // Was 5.0, now 8.0
+                size: CGSize(width: 3.0, height: 3.0),
                 opacity: 1.0,
-                force: 0.8,
+                force: 0.7,
                 azimuth: 0,
                 altitude: .pi / 4
             )
@@ -133,7 +148,7 @@ class SurpriseGenerator {
         return AIMove(
             moveType: .surprise,
             path: path,
-            tool: PKInkingTool(.marker, color: .systemPurple, width: 12.0),  // Was 8.0, now 12.0
+            tool: PKInkingTool(.pen, color: GeneratorColors.surpriseColor, width: 3.0),
             metadata: ["surpriseType": "loop"]
         )
     }

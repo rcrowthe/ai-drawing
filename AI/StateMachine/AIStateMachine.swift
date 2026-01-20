@@ -22,8 +22,8 @@ class AIStateMachine: ObservableObject {
     private var timer: Timer?
 
     // Thresholds for mode detection
-    private let wanderSpreadThreshold: Double = 200.0  // Points
-    private let focusOverlapThreshold: Double = 0.7    // Ratio
+    private let wanderSpreadThreshold: Double = 150.0  // LOWERED from 200.0 - easier to enter focus
+    private let focusOverlapThreshold: Double = 0.4    // LOWERED from 0.7 - easier to enter focus
     private let stagnationThreshold: Double = 0.3      // Variety score
 
     init(configuration: AIConfiguration = AIConfiguration()) {
@@ -103,7 +103,10 @@ class AIStateMachine: ObservableObject {
 
     private func updateAttentionMode() {
         guard recentStrokes.count >= 3 else {
-            attentionMode = .wander
+            if attentionMode != .wander {
+                print("🎯 Attention Mode: WANDER (insufficient strokes)")
+                attentionMode = .wander
+            }
             return
         }
 
@@ -118,6 +121,10 @@ class AIStateMachine: ObservableObject {
         // Calculate overlap density (focus indicator)
         let overlapDensity = calculateOverlapDensity(recentStrokes)
 
+        print("🎯 Metrics: spread=\(Int(spread)), velVar=\(String(format: "%.2f", velocityVariance)), overlap=\(String(format: "%.2f", overlapDensity))")
+
+        let previousMode = attentionMode
+
         // Decision logic
         if spread > wanderSpreadThreshold || velocityVariance > 0.5 {
             attentionMode = .wander
@@ -126,6 +133,10 @@ class AIStateMachine: ObservableObject {
         } else {
             // Default to wander
             attentionMode = .wander
+        }
+
+        if previousMode != attentionMode {
+            print("🎯 Attention Mode: \(attentionMode == .wander ? "WANDER" : "FOCUS")")
         }
     }
 

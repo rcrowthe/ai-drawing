@@ -13,12 +13,19 @@ class DrawingViewModel: ObservableObject {
     // Published state
     @Published var currentSession: DrawingSession
     @Published var pkDrawing: PKDrawing
-    @Published var selectedTool: PKTool = PKInkingTool(.pen, color: .red, width: 5)
+    @Published var selectedTool: PKTool = PKInkingTool(.pen, color: GeneratorColors.userPenColor, width: 5)
     @Published var canUndo: Bool = false
     @Published var canRedo: Bool = false
     @Published var aiState: AIState = AIState()
     @Published var aiConfiguration: AIConfiguration
     @Published var showAIStrokes: Bool = true  // Phase 8: AI visibility toggle
+
+    // Track current tool type for color updates
+    private var currentToolType: ToolType = .pen
+
+    private enum ToolType {
+        case pen, marker, eraser
+    }
 
     // Services
     private let historyManager = HistoryManager()
@@ -32,6 +39,7 @@ class DrawingViewModel: ObservableObject {
 
     private var cancellables = Set<AnyCancellable>()
     private var lastAIMoveType: AIMoveType?  // Track last AI move for reinforcement
+    private var isAddingAIStroke = false  // Prevent feedback loop
 
     init() {
         print("🔧 DrawingViewModel: init started")
@@ -69,12 +77,29 @@ class DrawingViewModel: ObservableObject {
             self.historyManager.$canRedo
                 .assign(to: &self.$canRedo)
         }
+
+        // Observe configuration changes and propagate to AIDecisionEngine
+        $aiConfiguration
+            .dropFirst() // Skip initial value
+            .sink { [weak self] newConfig in
+                self?.aiDecisionEngine.updateConfiguration(newConfig)
+                self?.persistenceService.saveConfiguration(newConfig)
+                print("🔧 Configuration auto-updated from settings")
+            }
+            .store(in: &cancellables)
     }
 
     // MARK: - Stroke Handling
 
     func handleStrokeAdded(_ pkStroke: PKStroke) {
         print("📝 handleStrokeAdded called")
+
+        // Skip if we're currently adding an AI stroke (prevent feedback loop)
+        if isAddingAIStroke {
+            print("📝 Skipping - AI stroke being added programmatically")
+            return
+        }
+
         // Create stroke model
         let stroke = Stroke(pkStroke: pkStroke, source: .user)
         print("📝 Stroke created: \(stroke.id)")
@@ -99,37 +124,47 @@ class DrawingViewModel: ObservableObject {
 
     private func generateAIResponse(for userStroke: Stroke) {
         print("🤖 generateAIResponse called")
-        // Check if AI should respond
-        guard aiDecisionEngine.shouldRespond(
-            to: userStroke,
-            session: currentSession
-        ) else {
-            print("🤖 AI decided NOT to respond")
-            return
+
+        // Run AI decision-making on background queue for performance
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+
+            // Check if AI should respond
+            guard self.aiDecisionEngine.shouldRespond(
+                to: userStroke,
+                session: self.currentSession
+            ) else {
+                print("🤖 AI decided NOT to respond")
+                return
+            }
+
+            print("🤖 AI IS responding - generating move")
+            // Generate AI move
+            guard let aiMove = self.aiDecisionEngine.generateResponse(
+                userStroke: userStroke,
+                session: self.currentSession
+            ) else {
+                print("🤖 ERROR: generateResponse returned nil")
+                return
+            }
+
+            print("🤖 AI move generated: \(aiMove.moveType)")
+
+            // Execute AI move on main thread
+            DispatchQueue.main.async {
+                self.executeAIMove(aiMove)
+                self.aiState = self.aiDecisionEngine.getCurrentState()
+            }
         }
-
-        print("🤖 AI IS responding - generating move")
-        // Generate AI move
-        guard let aiMove = aiDecisionEngine.generateResponse(
-            userStroke: userStroke,
-            session: currentSession
-        ) else {
-            print("🤖 ERROR: generateResponse returned nil")
-            return
-        }
-
-        print("🤖 AI move generated: \(aiMove.moveType)")
-        // Execute AI move
-        executeAIMove(aiMove)
-
-        // Update AI state for UI
-        aiState = aiDecisionEngine.getCurrentState()
     }
 
     private func executeAIMove(_ move: AIMove) {
         print("🤖 executeAIMove: \(move.moveType)")
         // Convert to PKStroke
         let pkStroke = move.toPKStroke()
+
+        // Set flag to prevent feedback loop
+        isAddingAIStroke = true
 
         // Add to PencilKit drawing - force update
         DispatchQueue.main.async {
@@ -138,6 +173,11 @@ class DrawingViewModel: ObservableObject {
             self.pkDrawing = drawing
             print("🤖 AI stroke added to canvas. Total canvas strokes: \(drawing.strokes.count)")
             print("🤖 pkDrawing updated with \(self.pkDrawing.strokes.count) strokes")
+
+            // Reset flag after a short delay to ensure the update completes
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                self.isAddingAIStroke = false
+            }
         }
 
         // Create stroke model
@@ -250,11 +290,30 @@ class DrawingViewModel: ObservableObject {
     // MARK: - Tool Selection
 
     func selectPenTool() {
-        selectedTool = PKInkingTool(.pen, color: .red, width: 5)
+        currentToolType = .pen
+        selectedTool = PKInkingTool(.pen, color: GeneratorColors.userPenColor, width: 5)
     }
 
     func selectMarkerTool() {
-        selectedTool = PKInkingTool(.marker, color: .blue, width: 20)
+        currentToolType = .marker
+        selectedTool = PKInkingTool(.marker, color: GeneratorColors.userPenColor, width: 20)
+    }
+
+    func selectEraserTool() {
+        currentToolType = .eraser
+        selectedTool = PKEraserTool(.vector)
+    }
+
+    /// Update tool color when color changes in settings
+    func updateToolColor() {
+        switch currentToolType {
+        case .pen:
+            selectedTool = PKInkingTool(.pen, color: GeneratorColors.userPenColor, width: 5)
+        case .marker:
+            selectedTool = PKInkingTool(.marker, color: GeneratorColors.userPenColor, width: 20)
+        case .eraser:
+            break // Eraser doesn't use color
+        }
     }
 
     // MARK: - AI Visibility Toggle (Phase 8)
@@ -285,10 +344,13 @@ class DrawingViewModel: ObservableObject {
     func updateConfiguration(_ newConfiguration: AIConfiguration) {
         self.aiConfiguration = newConfiguration
 
-        // Re-create AI decision engine with new configuration
-        self.aiDecisionEngine = AIDecisionEngine(configuration: newConfiguration)
+        // Update AI decision engine with new configuration
+        self.aiDecisionEngine.updateConfiguration(newConfiguration)
 
-        // Configuration is automatically saved by ControlPanelViewModel
+        // Save the configuration
+        persistenceService.saveConfiguration(newConfiguration)
+
+        print("🔧 Configuration updated in DrawingViewModel")
     }
 
     /// Apply profile-based adaptations to AI configuration (Phase 6)

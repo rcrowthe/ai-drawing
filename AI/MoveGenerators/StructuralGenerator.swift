@@ -92,7 +92,7 @@ class StructuralGenerator {
     // MARK: - Edge Reinforcement
 
     private func reinforceEdge(stroke: Stroke, state: AIState) -> AIMove? {
-        // Create a parallel line to reinforce the edge
+        // Create a parallel line to reinforce the edge with slight variation
         let offset: CGFloat = state.attentionMode == .wander ? 40.0 : 20.0
 
         // Calculate perpendicular direction
@@ -102,20 +102,25 @@ class StructuralGenerator {
 
         guard length > 0 else { return nil }
 
-        let perpX = -dy / length * offset
-        let perpY = dx / length * offset
-
-        // Create parallel stroke
-        let start = CGPoint(x: stroke.startPoint.x + perpX, y: stroke.startPoint.y + perpY)
-        let end = CGPoint(x: stroke.endPoint.x + perpX, y: stroke.endPoint.y + perpY)
+        let perpX = -dy / length
+        let perpY = dx / length
 
         var controlPoints: [PKStrokePoint] = []
-        let segments = 5
+        let segments = 8
 
         for i in 0...segments {
             let t = CGFloat(i) / CGFloat(segments)
-            let x = start.x + (end.x - start.x) * t
-            let y = start.y + (end.y - start.y) * t
+
+            // Base position along stroke
+            let baseX = stroke.startPoint.x + dx * t
+            let baseY = stroke.startPoint.y + dy * t
+
+            // Add slight wobble for organic feel (less than curve)
+            let wobble = sin(t * .pi * 3) * 4.0
+            let currentOffset = offset + wobble
+
+            let x = baseX + perpX * currentOffset
+            let y = baseY + perpY * currentOffset
 
             let point = PKStrokePoint(
                 location: CGPoint(x: x, y: y),
@@ -134,7 +139,7 @@ class StructuralGenerator {
         return AIMove(
             moveType: .structural,
             path: path,
-            tool: PKInkingTool(.marker, color: .cyan, width: 8.0),
+            tool: PKInkingTool(.pen, color: GeneratorColors.structuralColor, width: 3.0),
             metadata: ["structureType": "edge"]
         )
     }
@@ -142,12 +147,10 @@ class StructuralGenerator {
     // MARK: - Curve Reinforcement
 
     private func reinforceCurve(stroke: Stroke, state: AIState) -> AIMove? {
-        print("🏗️ StructuralGenerator: reinforceCurve - using simple parallel approach")
+        print("🏗️ StructuralGenerator: reinforceCurve - creating curved reinforcement")
 
-        // Use simple parallel line approach instead of complex path reconstruction
         let offset: CGFloat = 15.0
 
-        // Calculate perpendicular direction
         let dx = stroke.endPoint.x - stroke.startPoint.x
         let dy = stroke.endPoint.y - stroke.startPoint.y
         let length = hypot(dx, dy)
@@ -157,25 +160,30 @@ class StructuralGenerator {
             return nil
         }
 
-        let perpX = -dy / length * offset
-        let perpY = dx / length * offset
-
-        // Create parallel stroke
-        let start = CGPoint(x: stroke.startPoint.x + perpX, y: stroke.startPoint.y + perpY)
-        let end = CGPoint(x: stroke.endPoint.x + perpX, y: stroke.endPoint.y + perpY)
+        let perpX = -dy / length
+        let perpY = dx / length
 
         var controlPoints: [PKStrokePoint] = []
-        let segments = 8
+        let segments = 10
 
         for i in 0...segments {
             let t = CGFloat(i) / CGFloat(segments)
-            let x = start.x + (end.x - start.x) * t
-            let y = start.y + (end.y - start.y) * t
+
+            // Base position
+            let baseX = stroke.startPoint.x + dx * t
+            let baseY = stroke.startPoint.y + dy * t
+
+            // Add arc to emphasize curvature
+            let arc = sin(t * .pi) * 12.0  // Arc peaks in middle
+            let currentOffset = offset + arc
+
+            let x = baseX + perpX * currentOffset
+            let y = baseY + perpY * currentOffset
 
             let newPoint = PKStrokePoint(
                 location: CGPoint(x: x, y: y),
                 timeOffset: TimeInterval(i) * 0.01,
-                size: CGSize(width: 4.0, height: 4.0),
+                size: CGSize(width: 3.0, height: 3.0),
                 opacity: 1.0,
                 force: 0.7,
                 azimuth: 0,
@@ -196,7 +204,7 @@ class StructuralGenerator {
         return AIMove(
             moveType: .structural,
             path: path,
-            tool: PKInkingTool(.marker, color: .cyan, width: 6.0),
+            tool: PKInkingTool(.pen, color: GeneratorColors.structuralColor, width: 3.0),
             metadata: ["structureType": "curve"]
         )
     }
@@ -217,7 +225,7 @@ class StructuralGenerator {
         let cornerPoint = PKStrokePoint(
             location: middle,
             timeOffset: 0,
-            size: CGSize(width: 8.0, height: 8.0),
+            size: CGSize(width: 4.0, height: 4.0),
             opacity: 1.0,
             force: 0.8,
             azimuth: 0,
@@ -231,7 +239,7 @@ class StructuralGenerator {
         return AIMove(
             moveType: .structural,
             path: path,
-            tool: PKInkingTool(.marker, color: .cyan, width: 10.0),
+            tool: PKInkingTool(.pen, color: GeneratorColors.structuralColor, width: 4.0),
             metadata: ["structureType": "angle"]
         )
     }
@@ -256,7 +264,7 @@ class StructuralGenerator {
             let point = PKStrokePoint(
                 location: CGPoint(x: x, y: y),
                 timeOffset: TimeInterval(i) * 0.01,
-                size: CGSize(width: 5.0, height: 5.0),
+                size: CGSize(width: 3.0, height: 3.0),
                 opacity: 1.0,
                 force: 0.7,
                 azimuth: 0,
@@ -272,7 +280,7 @@ class StructuralGenerator {
         return AIMove(
             moveType: .structural,
             path: path,
-            tool: PKInkingTool(.marker, color: .cyan, width: 7.0),
+            tool: PKInkingTool(.pen, color: GeneratorColors.structuralColor, width: 3.0),
             metadata: ["structureType": "closure"]
         )
     }

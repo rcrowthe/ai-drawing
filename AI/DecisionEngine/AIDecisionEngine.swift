@@ -22,7 +22,7 @@ class AIDecisionEngine: ObservableObject {
     private let predictiveGenerator: PredictiveGenerator
     private let surpriseGenerator: SurpriseGenerator
 
-    private let configuration: AIConfiguration
+    private var configuration: AIConfiguration
 
     init(configuration: AIConfiguration = AIConfiguration()) {
         self.configuration = configuration
@@ -66,35 +66,33 @@ class AIDecisionEngine: ObservableObject {
         session: DrawingSession
     ) -> AIMove? {
         print("🤖 generateResponse: starting")
-        // Update state machine with new stroke
-        stateMachine.processUserStroke(userStroke)
 
-        // Get current AI state
+        // SKIP state machine updates for speed - just get basic state
         let aiState = stateMachine.getCurrentState()
 
-        // Create canvas state snapshot
+        // Create minimal canvas state
         let canvasState = CanvasState(
             session: session,
             aiState: aiState
         )
-        print("🤖 Canvas state created")
 
-        // Phase 4: Use lens aggregation + move selection
-        let aggregatedAnalysis = lensAggregator.aggregate(
-            userStroke: userStroke,
-            recentStrokes: session.recentStrokes(window: 10.0),
-            canvasState: canvasState,
-            configuration: configuration
-        )
-        print("🤖 Lens analysis complete")
+        // FAST MODE: Randomly pick move type (skip expensive lens aggregation)
+        // Filter to only enabled generators
+        var enabledMoveTypes: [AIMoveType] = []
+        if configuration.echoEnabled { enabledMoveTypes.append(.echo) }
+        if configuration.textureEnabled { enabledMoveTypes.append(.texture) }
+        if configuration.structuralEnabled { enabledMoveTypes.append(.structural) }
+        if configuration.contrastEnabled { enabledMoveTypes.append(.contrast) }
+        if configuration.predictiveEnabled { enabledMoveTypes.append(.predictive) }
+        if configuration.surpriseEnabled { enabledMoveTypes.append(.surprise) }
 
-        // Select move type based on lens suggestions and AI state
-        let selectedMoveType = moveSelector.select(
-            from: aggregatedAnalysis.suggestedMoves,
-            state: aiState,
-            configuration: configuration
-        )
-        print("🤖 Selected move type: \(selectedMoveType)")
+        guard !enabledMoveTypes.isEmpty else {
+            print("🤖 ERROR: All generators disabled!")
+            return nil
+        }
+
+        let selectedMoveType = enabledMoveTypes.randomElement()!
+        print("🤖 FAST MODE - Random move type: \(selectedMoveType)")
 
         // Generate move using appropriate generator
         let proposedMove = generateMove(
@@ -110,16 +108,6 @@ class AIDecisionEngine: ObservableObject {
             return nil
         }
         print("🤖 Move generated successfully")
-
-        // Validate safety - TEMPORARILY DISABLED FOR TESTING
-        // TODO: Fix safety validator to be less strict
-        /*
-        guard safetyValidator.isValid(move, canvasState: canvasState) else {
-            print("🤖 BLOCKED: Safety validator rejected the move")
-            return nil
-        }
-        */
-        print("🤖 Safety validation passed (DISABLED FOR TESTING)")
 
         return move
     }
@@ -189,5 +177,11 @@ class AIDecisionEngine: ObservableObject {
     /// Get current AI state (for UI display)
     func getCurrentState() -> AIState {
         return stateMachine.getCurrentState()
+    }
+
+    /// Update configuration when settings change
+    func updateConfiguration(_ newConfiguration: AIConfiguration) {
+        self.configuration = newConfiguration
+        print("🤖 Configuration updated: assertiveness=\(newConfiguration.assertiveness)")
     }
 }

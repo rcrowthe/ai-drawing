@@ -50,10 +50,10 @@ class TextureGenerator {
     // MARK: - Hatching Generation
 
     private func generateHatching(near stroke: Stroke, state: AIState) -> AIMove? {
-        // Create parallel lines near the stroke
+        // Create parallel lines near the stroke - REDUCED for less chaos
         let bounds = stroke.boundingBox
-        let lineCount = state.attentionMode == .wander ? 3 : 5
-        let spacing: CGFloat = state.attentionMode == .wander ? 8.0 : 4.0
+        let lineCount = state.attentionMode == .wander ? 2 : 3  // Was 3:5, now 2:3
+        let spacing: CGFloat = state.attentionMode == .wander ? 12.0 : 8.0  // Was 8:4, now 12:8
 
         var controlPoints: [PKStrokePoint] = []
 
@@ -72,13 +72,13 @@ class TextureGenerator {
             let startX = bounds.midX + offset * cos(hatchAngle + .pi / 2)
             let startY = bounds.midY + offset * sin(hatchAngle + .pi / 2)
 
-            // End point
-            let lineLength: CGFloat = bounds.width * 0.3
+            // End point - REDUCED LENGTH
+            let lineLength: CGFloat = bounds.width * 0.2  // Was 0.3, now 0.2
             let endX = startX + lineLength * cos(hatchAngle)
             let endY = startY + lineLength * sin(hatchAngle)
 
             // Create stroke points
-            let segments = 5
+            let segments = 4  // Was 5, now 4
             for j in 0...segments {
                 let t = CGFloat(j) / CGFloat(segments)
                 let x = startX + (endX - startX) * t
@@ -87,9 +87,9 @@ class TextureGenerator {
                 let point = PKStrokePoint(
                     location: CGPoint(x: x, y: y),
                     timeOffset: TimeInterval(j) * 0.01,
-                    size: CGSize(width: 3.0, height: 3.0),
+                    size: CGSize(width: 2.0, height: 2.0),
                     opacity: 1.0,
-                    force: 0.7,
+                    force: 0.6,
                     azimuth: 0,
                     altitude: .pi / 4
                 )
@@ -104,7 +104,7 @@ class TextureGenerator {
         return AIMove(
             moveType: .texture,
             path: path,
-            tool: PKInkingTool(.marker, color: .systemOrange, width: 4.0),
+            tool: PKInkingTool(.pen, color: GeneratorColors.textureColor, width: 2.0),
             metadata: ["textureType": "hatching"]
         )
     }
@@ -112,10 +112,10 @@ class TextureGenerator {
     // MARK: - Stippling Generation
 
     private func generateStippling(near stroke: Stroke, state: AIState) -> AIMove? {
-        // Generate random dots around the stroke
+        // Create random dots around the stroke - REDUCED for less chaos
         let bounds = stroke.boundingBox
-        let dotCount = state.attentionMode == .wander ? 25 : 15  // Was 15:8, now 25:15 - MORE dots
-        let radius = bounds.width * 0.6  // Was 0.4, now 0.6 - WIDER spread
+        let dotCount = state.attentionMode == .wander ? 8 : 5  // Was 15:8, now 8:5
+        let radius = bounds.width * 0.3  // Was 0.4, now 0.3
 
         var controlPoints: [PKStrokePoint] = []
 
@@ -127,13 +127,13 @@ class TextureGenerator {
             let x = bounds.midX + distance * cos(angle)
             let y = bounds.midY + distance * sin(angle)
 
-            // Create a dot
+            // Create a tiny dot (2 points for minimal stroke)
             let point1 = PKStrokePoint(
                 location: CGPoint(x: x, y: y),
                 timeOffset: TimeInterval(i) * 0.01,
-                size: CGSize(width: 6.0, height: 6.0),  // Was 4.0, now 6.0 - BIGGER
+                size: CGSize(width: 3.0, height: 3.0),
                 opacity: 1.0,
-                force: 0.8,
+                force: 0.7,
                 azimuth: 0,
                 altitude: .pi / 2
             )
@@ -141,9 +141,9 @@ class TextureGenerator {
             let point2 = PKStrokePoint(
                 location: CGPoint(x: x + 0.1, y: y + 0.1),  // Minimal offset
                 timeOffset: TimeInterval(i) * 0.01 + 0.001,
-                size: CGSize(width: 6.0, height: 6.0),  // Was 4.0, now 6.0
+                size: CGSize(width: 3.0, height: 3.0),
                 opacity: 1.0,
-                force: 0.8,
+                force: 0.7,
                 azimuth: 0,
                 altitude: .pi / 2
             )
@@ -158,7 +158,7 @@ class TextureGenerator {
         return AIMove(
             moveType: .texture,
             path: path,
-            tool: PKInkingTool(.marker, color: .systemOrange, width: 8.0),  // Was 5.0, now 8.0
+            tool: PKInkingTool(.pen, color: GeneratorColors.textureColor, width: 2.5),
             metadata: ["textureType": "stippling"]
         )
     }
@@ -186,9 +186,9 @@ class TextureGenerator {
             let point = PKStrokePoint(
                 location: CGPoint(x: x + offsetX, y: y + offsetY),
                 timeOffset: TimeInterval(i) * 0.01,
-                size: CGSize(width: 5.0, height: 5.0),
+                size: CGSize(width: 3.0, height: 3.0),
                 opacity: 1.0,
-                force: 0.8,
+                force: 0.7,
                 azimuth: 0,
                 altitude: .pi / 2
             )
@@ -203,7 +203,7 @@ class TextureGenerator {
         return AIMove(
             moveType: .texture,
             path: path,
-            tool: PKInkingTool(.marker, color: .systemOrange, width: 6.0),
+            tool: PKInkingTool(.pen, color: GeneratorColors.textureColor, width: 2.5),
             metadata: ["textureType": "dots"]
         )
     }

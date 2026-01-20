@@ -21,12 +21,17 @@ class PredictiveGenerator {
         let velocity = calculateAverageVelocity(recentStrokes + [userStroke])
         let direction = calculateAverageDirection(recentStrokes + [userStroke])
 
-        // Project forward
+        // Project forward from a random point along stroke (not always the end)
+        let t = CGFloat.random(in: 0.5...1.0)  // Favor end but not always
+        let projectionStart = CGPoint(
+            x: userStroke.startPoint.x + (userStroke.endPoint.x - userStroke.startPoint.x) * t,
+            y: userStroke.startPoint.y + (userStroke.endPoint.y - userStroke.startPoint.y) * t
+        )
+
         let projectionDistance: CGFloat = 50.0
-        let start = userStroke.endPoint
         let end = CGPoint(
-            x: start.x + projectionDistance * cos(direction),
-            y: start.y + projectionDistance * sin(direction)
+            x: projectionStart.x + projectionDistance * cos(direction),
+            y: projectionStart.y + projectionDistance * sin(direction)
         )
 
         var controlPoints: [PKStrokePoint] = []
@@ -34,13 +39,13 @@ class PredictiveGenerator {
 
         for i in 0...segments {
             let t = CGFloat(i) / CGFloat(segments)
-            let x = start.x + (end.x - start.x) * t
-            let y = start.y + (end.y - start.y) * t
+            let x = projectionStart.x + (end.x - projectionStart.x) * t
+            let y = projectionStart.y + (end.y - projectionStart.y) * t
 
             let point = PKStrokePoint(
                 location: CGPoint(x: x, y: y),
                 timeOffset: TimeInterval(i) * 0.01,
-                size: CGSize(width: 4.0, height: 4.0),
+                size: CGSize(width: 3.0, height: 3.0),
                 opacity: 1.0,
                 force: 0.7,
                 azimuth: 0,
@@ -54,7 +59,7 @@ class PredictiveGenerator {
         return AIMove(
             moveType: .predictive,
             path: path,
-            tool: PKInkingTool(.marker, color: .systemPink, width: 7.0),
+            tool: PKInkingTool(.pen, color: GeneratorColors.predictiveColor, width: 3.0),
             metadata: ["projectedDirection": direction]
         )
     }

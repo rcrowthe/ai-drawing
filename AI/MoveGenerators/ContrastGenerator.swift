@@ -19,28 +19,36 @@ class ContrastGenerator {
     ) -> AIMove? {
         // Create a stroke that contrasts with user's direction
         let oppositeAngle = calculateOppositeDirection(stroke: userStroke)
-        let length = CGFloat(userStroke.length) * 0.9  // Was 0.6, now 0.9 - LONGER
+        let length = CGFloat(userStroke.length) * 0.6
 
-        let start = userStroke.endPoint
-        let end = CGPoint(
-            x: start.x + length * cos(oppositeAngle),
-            y: start.y + length * sin(oppositeAngle)
+        // Start from random point along the stroke (not just the end)
+        let t = CGFloat.random(in: 0.3...0.7)  // Random position along stroke
+        let start = CGPoint(
+            x: userStroke.startPoint.x + (userStroke.endPoint.x - userStroke.startPoint.x) * t,
+            y: userStroke.startPoint.y + (userStroke.endPoint.y - userStroke.startPoint.y) * t
         )
 
         var controlPoints: [PKStrokePoint] = []
-        let segments = 10  // Was 8, now 10
+        let segments = 10
 
         for i in 0...segments {
             let t = CGFloat(i) / CGFloat(segments)
-            let x = start.x + (end.x - start.x) * t
-            let y = start.y + (end.y - start.y) * t
+
+            // Add curve to make it more interesting than straight line
+            let baseX = start.x + length * t * cos(oppositeAngle)
+            let baseY = start.y + length * t * sin(oppositeAngle)
+
+            // Add perpendicular wave for curved contrast
+            let wave = sin(t * .pi * 2) * 10.0
+            let x = baseX + wave * cos(oppositeAngle + .pi / 2)
+            let y = baseY + wave * sin(oppositeAngle + .pi / 2)
 
             let point = PKStrokePoint(
                 location: CGPoint(x: x, y: y),
                 timeOffset: TimeInterval(i) * 0.01,
-                size: CGSize(width: 8.0, height: 8.0),  // Was 6.0, now 8.0
+                size: CGSize(width: 3.0, height: 3.0),
                 opacity: 1.0,
-                force: 0.9,
+                force: 0.8,
                 azimuth: 0,
                 altitude: .pi / 3
             )
@@ -52,7 +60,7 @@ class ContrastGenerator {
         return AIMove(
             moveType: .contrast,
             path: path,
-            tool: PKInkingTool(.marker, color: .systemGreen, width: 12.0),  // Was 10.0, now 12.0
+            tool: PKInkingTool(.pen, color: GeneratorColors.contrastColor, width: 3.0),
             metadata: ["oppositeAngle": oppositeAngle]
         )
     }
