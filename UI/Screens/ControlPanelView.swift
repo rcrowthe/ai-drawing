@@ -253,6 +253,44 @@ struct ControlPanelView: View {
                 } footer: {
                     Text("Restores all settings to default values")
                 }
+
+                // Continuous Co-Drawing Section
+                Section {
+                    Toggle("Enable Continuous Mode", isOn: $viewModel.continuousModeEnabled)
+                        .onChange(of: viewModel.continuousModeEnabled) { oldValue, newValue in
+                            if newValue {
+                                viewModel.startContinuousDrawing()
+                            } else {
+                                viewModel.stopContinuousDrawing()
+                            }
+                        }
+
+                    if viewModel.continuousModeEnabled {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("AI Draw Rate")
+                                    .font(.subheadline)
+                                Spacer()
+                                Text("\(String(format: "%.1f", viewModel.continuousDrawRate)) strokes/sec")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+
+                            Slider(value: $viewModel.continuousDrawRate, in: 0.5...5.0, step: 0.5)
+                                .onChange(of: viewModel.continuousDrawRate) { oldValue, newValue in
+                                    viewModel.setContinuousDrawRate(newValue)
+                                }
+                        }
+                    }
+                } header: {
+                    Text("Continuous Co-Drawing")
+                } footer: {
+                    if viewModel.continuousModeEnabled {
+                        Text("AI continuously draws alongside you, responding to all strokes on canvas (user and AI)")
+                    } else {
+                        Text("Enable to have AI draw in real-time as a collaborative partner")
+                    }
+                }
             }
             .navigationTitle("AI Settings")
             .navigationBarTitleDisplayMode(.inline)

@@ -13,17 +13,44 @@ struct DrawingScreen: View {
     @State private var showingSettings = false
     @State private var controlPanelViewModel: ControlPanelViewModel?
 
+    // Feature flag: switch between PencilKit and Metal rendering
+    @State private var useMetalRenderer = true  // Set to true to enable Metal pipeline
+
     var body: some View {
-        print("🖼️ DrawingScreen body rendering")
+        print("🖼️ DrawingScreen body rendering - useMetalRenderer: \(useMetalRenderer)")
         return ZStack {
-            // Main canvas
-            DrawingCanvasView(
-                drawing: $viewModel.pkDrawing,
-                onStrokeAdded: viewModel.handleStrokeAdded,
-                onStrokeRemoved: viewModel.handleStrokeRemoved,
-                tool: viewModel.selectedTool
-            )
-            .edgesIgnoringSafeArea(.all)
+            // Canvas layer (conditional based on feature flag)
+            if useMetalRenderer {
+                // NEW: Metal-based streaming canvas
+                MetalCanvasView(
+                    onStrokeBegan: viewModel.handleMetalStrokeBegan,
+                    onStrokeProgress: viewModel.handleMetalStrokeProgress,
+                    onStrokeCommitted: viewModel.handleMetalStrokeCommitted,
+                    onStrokeCancelled: viewModel.handleMetalStrokeCancelled,
+                    drawingColor: $viewModel.metalDrawingColor,
+                    strokeWidth: $viewModel.metalStrokeWidth,
+                    onViewReady: { touchCaptureView in
+                        viewModel.metalCanvasView = touchCaptureView
+                        print("🎨 Metal canvas view reference stored in ViewModel")
+                    }
+                )
+                .edgesIgnoringSafeArea(.all)
+            } else {
+                // LEGACY: PencilKit canvas
+                DrawingCanvasView(
+                    drawing: $viewModel.pkDrawing,
+                    onStrokeAdded: viewModel.handleStrokeAdded,
+                    onStrokeRemoved: viewModel.handleStrokeRemoved,
+                    tool: viewModel.selectedTool,
+                    onDrawingBegan: viewModel.userDidBeginDrawing,
+                    onDrawingEnded: viewModel.userDidEndDrawing
+                )
+                .edgesIgnoringSafeArea(.all)
+
+                // AI Stroke Overlay - only for PencilKit mode
+                AIStrokeOverlayView(viewModel: viewModel)
+                    .edgesIgnoringSafeArea(.all)
+            }
 
             // AI Activity Indicator (Phase 8)
             VStack {
@@ -58,6 +85,7 @@ struct DrawingScreen: View {
 
                     Spacer()
 
+                    // Drawing tools (work with both PencilKit and Metal)
                     // Pen tool
                     Button(action: viewModel.selectPenTool) {
                         Image(systemName: "pencil")
@@ -119,8 +147,15 @@ struct DrawingScreen: View {
                     persistenceService: PersistenceService.shared,
                     onConfigurationChanged: { newConfig in
                         viewModel.updateConfiguration(newConfig)
-                    }
+                    },
+                    drawingViewModel: viewModel
                 )
+            }
+
+            // Auto-start continuous mode if enabled in configuration
+            if viewModel.aiConfiguration.continuousModeEnabled {
+                print("🎛️ DrawingScreen: Auto-starting continuous drawing (enabled by default)")
+                viewModel.startContinuousDrawing()
             }
         }
         .sheet(isPresented: $showingSettings) {
@@ -129,6 +164,19 @@ struct DrawingScreen: View {
                     configuration: $viewModel.aiConfiguration,
                     onUserColorChanged: {
                         viewModel.updateToolColor()
+                    },
+                    onContinuousModeChanged: { enabled in
+                        print("🎛️ DrawingScreen: onContinuousModeChanged called with: \(enabled)")
+                        if enabled {
+                            print("🎛️ DrawingScreen: Starting continuous drawing")
+                            viewModel.startContinuousDrawing()
+                        } else {
+                            print("🎛️ DrawingScreen: Stopping continuous drawing")
+                            viewModel.stopContinuousDrawing()
+                        }
+                    },
+                    onDrawRateChanged: { rate in
+                        viewModel.setContinuousDrawRate(rate)
                     }
                 )
             }

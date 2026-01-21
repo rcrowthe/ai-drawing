@@ -19,7 +19,11 @@ class PredictiveGenerator {
     ) -> AIMove? {
         // Predict next position based on recent stroke velocity and direction
         let velocity = calculateAverageVelocity(recentStrokes + [userStroke])
-        let direction = calculateAverageDirection(recentStrokes + [userStroke])
+        let baseDirection = calculateAverageDirection(recentStrokes + [userStroke])
+
+        // Add variation to prevent infinite straight lines
+        let angleVariation = CGFloat.random(in: -0.3...0.3)  // +/- ~17 degrees
+        let direction = baseDirection + angleVariation
 
         // Project forward from a random point along stroke (not always the end)
         let t = CGFloat.random(in: 0.5...1.0)  // Favor end but not always
@@ -28,19 +32,23 @@ class PredictiveGenerator {
             y: userStroke.startPoint.y + (userStroke.endPoint.y - userStroke.startPoint.y) * t
         )
 
-        let projectionDistance: CGFloat = 50.0
+        // Vary the projection distance too
+        let projectionDistance = CGFloat.random(in: 30.0...70.0)
         let end = CGPoint(
             x: projectionStart.x + projectionDistance * cos(direction),
             y: projectionStart.y + projectionDistance * sin(direction)
         )
+
+        // Check for nearby strokes and adjust if collision detected
+        let adjustedEnd = avoidCollisions(start: projectionStart, end: end, allStrokes: canvasState.session.strokes)
 
         var controlPoints: [PKStrokePoint] = []
         let segments = 6
 
         for i in 0...segments {
             let t = CGFloat(i) / CGFloat(segments)
-            let x = projectionStart.x + (end.x - projectionStart.x) * t
-            let y = projectionStart.y + (end.y - projectionStart.y) * t
+            let x = projectionStart.x + (adjustedEnd.x - projectionStart.x) * t
+            let y = projectionStart.y + (adjustedEnd.y - projectionStart.y) * t
 
             let point = PKStrokePoint(
                 location: CGPoint(x: x, y: y),
@@ -62,6 +70,37 @@ class PredictiveGenerator {
             tool: PKInkingTool(.pen, color: GeneratorColors.predictiveColor, width: 3.0),
             metadata: ["projectedDirection": direction]
         )
+    }
+
+    /// Adjust end point if it would collide with recent strokes
+    private func avoidCollisions(start: CGPoint, end: CGPoint, allStrokes: [Stroke]) -> CGPoint {
+        // Find strokes drawn in the last 2 seconds
+        let recentStrokes = allStrokes.filter { stroke in
+            Date().timeIntervalSince(stroke.timestamp) < 2.0
+        }
+
+        // Check if our projected line is too close to any recent stroke
+        for stroke in recentStrokes {
+            let distance = distanceToStroke(from: end, stroke: stroke)
+            if distance < 30.0 {  // Too close!
+                // Adjust end point away from the collision
+                let avoidanceAngle = atan2(end.y - stroke.boundingBox.center.y,
+                                          end.x - stroke.boundingBox.center.x)
+                let adjustedEnd = CGPoint(
+                    x: start.x + (end.x - start.x) * 0.7 + 20 * cos(avoidanceAngle),
+                    y: start.y + (end.y - start.y) * 0.7 + 20 * sin(avoidanceAngle)
+                )
+                return adjustedEnd
+            }
+        }
+
+        return end
+    }
+
+    /// Calculate distance from a point to a stroke's bounding box center
+    private func distanceToStroke(from point: CGPoint, stroke: Stroke) -> CGFloat {
+        let center = stroke.boundingBox.center
+        return hypot(point.x - center.x, point.y - center.y)
     }
 
     private func calculateAverageVelocity(_ strokes: [Stroke]) -> Double {

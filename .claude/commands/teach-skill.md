@@ -1,280 +1,319 @@
-# Teach Skill - Guide Skill Creation Through Questions
-
-Help create high-quality Claude Code skills by asking strategic questions that uncover requirements, edge cases, and implementation details.
-
-**Usage**: `/teach-skill`
-
-## What This Does
-
-Guides you through creating a new skill via a systematic Q&A process:
-1. Asks about the skill's purpose and name
-2. Explores core functionality and workflow
-3. Identifies edge cases and errors
-4. Clarifies user experience
-5. Documents dependencies
-6. Generates complete skill file
-
-Result: A well-defined, ready-to-use skill file.
-
-## How It Works
-
-### Phase 1: Basic Definition (Questions 1-2)
-
-**Question 1: Name and Purpose**
-```
-What would you like to name your skill?
-
-Provide:
-- Skill name (kebab-case, e.g., "code-reviewer")
-- One-sentence description
-- Main problem it solves
-```
-
-Analyze the name for clarity, consistency, conflicts.
-
-**Question 2: Core Functionality**
-```
-What are the key steps this skill should perform?
-
-List 3-7 main actions, for example:
-1. Analyze code
-2. Generate report
-3. Suggest fixes
-```
-
-### Phase 2: Inputs and Outputs (Questions 3-4)
-
-**Question 3: Input Requirements**
-```
-What inputs does your skill need?
-
-Consider:
-- Required arguments (must be provided)
-- Optional arguments (have defaults)
-- File paths, URLs, or data
-- Configuration options
-```
-
-**Question 4: Output Format**
-```
-What should the skill produce?
-
-Examples:
-- Formatted report (markdown, JSON)
-- Modified files
-- Summary message
-- Generated code
-```
-
-### Phase 3: Edge Cases (Questions 5-6)
-
-**Question 5: Edge Cases**
-```
-What unusual situations should the skill handle?
-
-Think about:
-- Empty or missing inputs
-- Very large datasets
-- Invalid data
-- Network failures
-- Permission issues
-```
-
-**Question 6: Failure Scenarios**
-```
-How should it behave when things go wrong?
-
-For each failure:
-- Fail gracefully or abort?
-- What error messages?
-- Can it recover automatically?
-- Ask user for help?
-```
-
-### Phase 4: User Experience (Questions 7-8)
-
-**Question 7: User Interaction**
-```
-Should the skill interact during execution?
-
-Consider:
-- Progress updates (long operations)
-- Confirmations (destructive actions)
-- Multiple choice questions
-- Pause/resume ability
-```
-
-**Question 8: Examples**
-```
-Provide 2-3 example use cases:
-
-For each:
-- Command invocation
-- Context/situation
-- Expected output
-```
-
-### Phase 5: Dependencies (Questions 9-10)
-
-**Question 9: Prerequisites**
-```
-What does the skill depend on?
-
-Check for:
-- Required tools (git, npm, etc.)
-- File structure needs
-- Environment variables
-- External services
-- Specific file formats
-```
-
-**Question 10: Performance**
-```
-Any performance constraints?
-
-Think about:
-- Maximum file sizes
-- Timeout limits
-- Memory usage
-- API rate limits
-- Parallel operations
-```
-
-### Phase 6: Validation and Generation
-
-**Summarize and Confirm:**
-```
-Let me summarize your skill:
-
-Name: skill-name
-Purpose: one-sentence description
-
-Core Steps:
-- Step 1
-- Step 2
-
-Inputs: [list]
-Outputs: [list]
-Edge Cases: [list]
-Dependencies: [list]
-
-Is this accurate? Modify anything? [Yes/No/Edit]
-```
-
-**Generate Skill File:**
-```markdown
-# Skill Name - Brief Description
-
-[Description]
-
-**Usage**: `/skill-name [arguments]`
-
-## What This Does
-
-[Clear explanation]
-
-## How It Works
-
-### Step 1: [Phase]
-[Instructions]
-
-### Step 2: [Phase]
-[Instructions]
-
-## Edge Cases
-
-[List and handling]
-
-## Examples
-
-[Usage examples]
-
-## Success Criteria
-
-[What success looks like]
-```
-
-### Phase 7: Save and Complete
-
-```
-✅ Skill created: .claude/commands/skill-name.md
-
-Next steps:
-1. Review the skill above
-2. Test: /skill-name [args]
-3. Refine: /crud update skill-name "changes"
-
-Would you like to test it now? [Yes/No]
-```
-
-## Adaptive Questioning
-
-Adjust follow-ups based on answers:
-
-**If skill involves files:**
-- Ask about formats, sizes, backups
-
-**If skill uses APIs:**
-- Ask about auth, rate limits, errors
-
-**If skill generates code:**
-- Ask about language, style, testing
-
-**If skill is interactive:**
-- Ask about UI/UX, accessibility
-
-**If skill modifies files:**
-- Ask about safety, undo, backups
-
-## Clarification Strategy
-
-When answers are unclear:
-```
-Thanks! A few clarifications:
-
-1. You mentioned [X]. Did you mean [A] or [B]?
-2. For [Y], could you provide an example?
-3. I'm unclear about [Z]. Could you elaborate?
-```
-
-## Example Session
-
-```
-Claude: What would you like to name your skill?
-
-User: "db-schema-diff" - compares database schemas and generates migration scripts
-
-Claude: Great! What are the key steps?
-
-User:
-1. Connect to source and target databases
-2. Extract schema definitions
-3. Compare tables, columns, indexes
-4. Generate migration SQL
-5. Optionally apply migrations
-
-Claude: What inputs does it need?
-
-User: Database connection strings, optional auto-apply flag
-
-[Session continues through all questions...]
-
-Claude: Here's your complete skill definition...
-```
-
-## Success Criteria
-
-A successful teach session creates:
-- ✅ Clear skill name and purpose
-- ✅ Comprehensive functionality list
-- ✅ All inputs/outputs specified
-- ✅ Edge cases identified
-- ✅ Error handling addressed
-- ✅ User experience considered
-- ✅ Dependencies documented
-- ✅ Multiple examples provided
-- ✅ Ready-to-use skill file
+# Teach Skill - Interactive Skill Creation Through Sequential Questions
+
+**CRITICAL INSTRUCTION**: This skill MUST use the AskUserQuestion tool for EVERY SINGLE QUESTION. Each question must provide 2-4 specific option choices. NEVER ask open-ended text questions. ONE question at a time.
+
+**Usage**: `/teach-skill [optional-skill-name]`
+
+## Execution Protocol
+
+### MANDATORY BEHAVIOR:
+
+1. **USE AskUserQuestion TOOL WITH 2-4 OPTIONS**
+2. **STOP AND WAIT FOR USER SELECTION**
+3. **PROCESS ANSWER**
+4. **USE AskUserQuestion TOOL FOR NEXT QUESTION**
+5. **REPEAT UNTIL ALL 10 QUESTIONS ANSWERED**
+
+**DO NOT:**
+- ❌ Ask multiple questions at once
+- ❌ Ask open-ended text questions without options
+- ❌ Use plain text questions instead of AskUserQuestion tool
+- ❌ Batch questions into groups
+- ❌ Explain what questions are coming next
+
+**DO:**
+- ✅ Use AskUserQuestion tool for every question
+- ✅ Provide 2-4 concrete options per question
+- ✅ Wait for user selection
+- ✅ Acknowledge answer briefly
+- ✅ Track state internally
 
 ---
 
-**Execute guided skill creation now.**
+## Question 1: Skill Name
+
+**USE AskUserQuestion TOOL - Generate 3-4 relevant skill name options based on user's initial request or context.**
+
+Example structure:
+- Option A: Generic approach name
+- Option B: Domain-specific name
+- Option C: Action-focused name
+- Option D: Tool-focused name
+
+User can always select "Other" to provide custom name.
+
+After answer: Store `skill_name`
+
+---
+
+## Question 2: Primary Purpose
+
+**USE AskUserQuestion TOOL - Present 3-4 main purposes this skill could serve.**
+
+Example options:
+- "Design and implement new features with HIG compliance"
+- "Review and critique existing code for design violations"
+- "Generate UI components following design system patterns"
+- "Audit codebase for accessibility and UX issues"
+
+After answer: Store `primary_purpose`
+
+---
+
+## Question 3: Execution Mode
+
+**USE AskUserQuestion TOOL - How should the skill operate?**
+
+Options must include:
+- "Proactive - Automatically implement fixes and improvements"
+- "Interactive - Show plan first, ask permission before implementing"
+- "Advisory - Only provide recommendations, never modify code"
+- "Hybrid - Auto-fix minor issues, ask permission for major changes"
+
+After answer: Store `execution_mode`
+
+---
+
+## Question 4: Input Type
+
+**USE AskUserQuestion TOOL - What inputs should trigger this skill?**
+
+Options must include:
+- "Feature description (text describing what to build)"
+- "File path (review existing code)"
+- "Both feature descriptions and file paths"
+- "Auto-scan codebase (no input needed)"
+
+After answer: Store `input_type`
+
+---
+
+## Question 5: Scope of Changes
+
+**USE AskUserQuestion TOOL - How extensive should modifications be?**
+
+Options must include:
+- "Single file only"
+- "Multiple related files (2-5 files)"
+- "Entire feature area (5-15 files)"
+- "Project-wide refactoring (15+ files)"
+
+After answer: Store `change_scope`
+
+---
+
+## Question 6: Design Authority Source
+
+**USE AskUserQuestion TOOL - What should guide design decisions?**
+
+Options must include:
+- "Local HIG documentation (project-specific)"
+- "Apple Human Interface Guidelines (official docs)"
+- "Existing codebase patterns (learn from project)"
+- "All of the above (combined approach)"
+
+After answer: Store `design_authority`
+
+---
+
+## Question 7: Error Handling Strategy
+
+**USE AskUserQuestion TOOL - How should failures be handled?**
+
+Options must include:
+- "Auto-rollback all changes on any failure"
+- "Partial commit - save what succeeded, report what failed"
+- "Retry automatically with simpler approach"
+- "Stop and ask user for guidance"
+
+After answer: Store `error_strategy`
+
+---
+
+## Question 8: Git Workflow
+
+**USE AskUserQuestion TOOL - How should version control be handled?**
+
+Options must include:
+- "Always create new feature branch before changes"
+- "Auto-stash, work on current branch, pop stash"
+- "Require clean working directory (abort if uncommitted changes)"
+- "No git operations (manual version control)"
+
+After answer: Store `git_workflow`
+
+---
+
+## Question 9: Build Validation
+
+**USE AskUserQuestion TOOL - Should the skill validate builds?**
+
+Options must include:
+- "Always validate build succeeds after implementation"
+- "Only validate for major changes (5+ files)"
+- "Never auto-validate (user will test manually)"
+- "Validate syntax only (no full build)"
+
+After answer: Store `build_validation`
+
+---
+
+## Question 10: Output Detail Level
+
+**USE AskUserQuestion TOOL - How much detail should be shown?**
+
+Options must include:
+- "Verbose - Show every file read, every decision, every change"
+- "Standard - Show major phases and key decisions"
+- "Minimal - Only show final summary and results"
+- "Debug - Include HIG citations and rationale for every decision"
+
+After answer: Store `output_detail`
+
+---
+
+## Summary and Confirmation
+
+**AFTER ALL 10 QUESTIONS:**
+
+Present summary in clear text format:
+
+```
+Skill Configuration Summary:
+
+1. Name: [skill_name]
+2. Purpose: [primary_purpose]
+3. Execution: [execution_mode]
+4. Input: [input_type]
+5. Scope: [change_scope]
+6. Design Authority: [design_authority]
+7. Error Handling: [error_strategy]
+8. Git: [git_workflow]
+9. Build Validation: [build_validation]
+10. Output: [output_detail]
+```
+
+**THEN USE AskUserQuestion TOOL:**
+
+Options:
+- "Yes - Generate the skill file now"
+- "Edit - Modify one or more answers"
+- "Restart - Start over from beginning"
+- "Cancel - Abort skill creation"
+
+---
+
+## Generation Phase
+
+**ONLY AFTER USER SELECTS "YES":**
+
+Generate skill markdown file with this structure:
+
+```markdown
+# [Skill Name] - [Brief Description]
+
+You are the [role based on purpose] for KahloStudio (or relevant project).
+
+**Usage**: `/[skill-name] [arguments]`
+
+## Core Identity
+
+[Description of persona, values, priorities based on answers]
+
+## What This Does
+
+[Clear explanation based on primary_purpose]
+
+## Execution Mode
+
+[Description based on execution_mode]
+
+## How It Works
+
+### Step 1: Analyze Input
+[Based on input_type]
+
+### Step 2: Check Design Authority
+[Based on design_authority - how to load/check HIG docs]
+
+### Step 3: Plan Implementation
+[Based on change_scope]
+
+### Step 4: Execute Changes
+[Based on execution_mode and change_scope]
+
+### Step 5: Handle Errors
+[Based on error_strategy]
+
+### Step 6: Manage Version Control
+[Based on git_workflow]
+
+### Step 7: Validate Results
+[Based on build_validation]
+
+## Edge Cases
+
+[Generate based on all answers - what can go wrong and how to handle]
+
+## Examples
+
+### Example 1: [Common use case based on purpose]
+```
+/[skill-name] "add export button"
+```
+[Expected behavior based on execution_mode]
+
+### Example 2: [Review scenario]
+```
+/[skill-name] --review KahloStudio/MaterialEditor.swift
+```
+[Expected output based on output_detail]
+
+### Example 3: [Complex scenario]
+```
+/[skill-name] "implement dark mode toggle"
+```
+[Expected workflow based on change_scope]
+
+## Prerequisites
+
+[Based on design_authority and build_validation]
+
+## Success Criteria
+
+- ✅ [Criterion based on primary_purpose]
+- ✅ [Criterion based on design_authority]
+- ✅ [Criterion based on build_validation]
+- ✅ [Criterion based on execution_mode]
+```
+
+Save to: `.claude/commands/[skill-name].md`
+
+Report:
+```
+✅ Skill created: .claude/commands/[skill-name].md
+
+Test it now: /[skill-name] [example-args]
+```
+
+---
+
+## State Tracking (Internal)
+
+Track these values across conversation turns:
+
+```
+question_number: 1-10
+skill_name: ""
+primary_purpose: ""
+execution_mode: ""
+input_type: ""
+change_scope: ""
+design_authority: ""
+error_strategy: ""
+git_workflow: ""
+build_validation: ""
+output_detail: ""
+```
+
+**CRITICAL**: Every question MUST use AskUserQuestion tool with 2-4 concrete options. No exceptions.

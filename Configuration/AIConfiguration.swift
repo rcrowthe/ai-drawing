@@ -29,6 +29,13 @@ struct AIConfiguration: Codable {
     // Autonomous mode: AI draws even when user is idle
     var autonomousModeEnabled: Bool = false
 
+    // Continuous co-drawing mode
+    var continuousModeEnabled: Bool = true  // Default to ON for immediate co-drawing
+    var continuousDrawRate: Double = 1.5  // strokes per second (0.5-5.0) - moderate rate for instant drawing
+    var maxLocalDensity: Double = 0.95  // 0.0-1.0, max density before AI stops drawing
+    var startDelay: Double = 0.3  // seconds to wait after user starts drawing before AI joins
+    var stopDelay: Double = 1.5  // seconds after user stops before AI stops
+
     // MARK: - Generator Toggles
     // Enable/disable specific generator types
     var echoEnabled: Bool = true

@@ -184,4 +184,66 @@ class AIDecisionEngine: ObservableObject {
         self.configuration = newConfiguration
         print("🤖 Configuration updated: assertiveness=\(newConfiguration.assertiveness)")
     }
+
+    // MARK: - Canvas-Aware Generation (Continuous Mode)
+
+    /// Generate response to any stroke (user OR AI) with full canvas context
+    /// Used by continuous drawing engine to respond to all canvas content
+    func generateResponseToAnyStroke(
+        targetStroke: Stroke,
+        allStrokes: [Stroke],
+        aiState: AIState
+    ) -> AIMove? {
+        print("🤖 generateResponseToAnyStroke: target=\(targetStroke.source) id=\(targetStroke.id)")
+
+        // Create session from all strokes for context
+        let session = DrawingSession(
+            id: UUID(),
+            createdAt: Date(),
+            lastModified: Date(),
+            strokes: allStrokes
+        )
+
+        let canvasState = CanvasState(session: session, aiState: aiState)
+
+        // Pick enabled generator type
+        var enabledTypes: [AIMoveType] = []
+        if configuration.echoEnabled { enabledTypes.append(.echo) }
+        if configuration.textureEnabled { enabledTypes.append(.texture) }
+        if configuration.structuralEnabled { enabledTypes.append(.structural) }
+        if configuration.contrastEnabled { enabledTypes.append(.contrast) }
+        if configuration.predictiveEnabled { enabledTypes.append(.predictive) }
+        if configuration.surpriseEnabled { enabledTypes.append(.surprise) }
+
+        guard !enabledTypes.isEmpty else {
+            print("🤖 ERROR: All generators disabled")
+            return nil
+        }
+
+        let moveType = enabledTypes.randomElement()!
+        print("🤖 Selected move type: \(moveType)")
+
+        // Generate move responding to target stroke (can be user OR AI)
+        let proposedMove = generateMove(
+            type: moveType,
+            userStroke: targetStroke,  // Note: can be AI stroke too
+            session: session,
+            aiState: aiState,
+            canvasState: canvasState
+        )
+
+        guard let move = proposedMove else {
+            print("🤖 ERROR: generateMove returned nil")
+            return nil
+        }
+
+        // Safety validation
+        guard safetyValidator.isValid(move, canvasState: canvasState) else {
+            print("🚫 Move REJECTED by safety validator")
+            return nil
+        }
+
+        print("🤖 Move generated and validated successfully")
+        return move
+    }
 }
