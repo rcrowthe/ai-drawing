@@ -7,6 +7,12 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		9424F4BE2F2135DE006624A8 /* StrokePoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9424F4BD2F2135DE006624A8 /* StrokePoint.swift */; };
+		9424F4C42F2135EE006624A8 /* StrokeSmoothing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9424F4C22F2135EE006624A8 /* StrokeSmoothing.swift */; };
+		9424F4C52F2135EE006624A8 /* TouchCaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9424F4C32F2135EE006624A8 /* TouchCaptureView.swift */; };
+		9424F4C62F2135EE006624A8 /* InkShaders.metal in Sources */ = {isa = PBXBuildFile; fileRef = 9424F4BF2F2135EE006624A8 /* InkShaders.metal */; };
+		9424F4C72F2135EE006624A8 /* MetalRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9424F4C12F2135EE006624A8 /* MetalRenderer.swift */; };
+		9424F4C82F2135EE006624A8 /* MetalCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9424F4C02F2135EE006624A8 /* MetalCanvasView.swift */; };
 		9426DF3E2F1F16320094CE33 /* GeneratorParameters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9426DF3D2F1F16320094CE33 /* GeneratorParameters.swift */; };
 		9426DF402F1FCE000094CE33 /* GeneratorSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9426DF3F2F1FCE000094CE33 /* GeneratorSettingsView.swift */; };
 		9426DF422F1FD6260094CE33 /* GeneratorColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9426DF412F1FD6260094CE33 /* GeneratorColors.swift */; };
@@ -45,9 +51,18 @@
 		944750042F1EFD5E0032AB8C /* AIConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94474FCC2F1EFD5E0032AB8C /* AIConfiguration.swift */; };
 		944750052F1EFD5E0032AB8C /* DrawingScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94474FE12F1EFD5E0032AB8C /* DrawingScreen.swift */; };
 		944750062F1EFD5E0032AB8C /* PersistenceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94474FD32F1EFD5E0032AB8C /* PersistenceService.swift */; };
+		944E6B302F2050C4008F487C /* SpatialDensityMap.swift in Sources */ = {isa = PBXBuildFile; fileRef = 944E6B2E2F2050C4008F487C /* SpatialDensityMap.swift */; };
+		944E6B312F2050C4008F487C /* ContinuousDrawingEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 944E6B2D2F2050C4008F487C /* ContinuousDrawingEngine.swift */; };
+		944E6B322F2050C4008F487C /* CanvasAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 944E6B2C2F2050C4008F487C /* CanvasAnalyzer.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		9424F4BD2F2135DE006624A8 /* StrokePoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StrokePoint.swift; sourceTree = "<group>"; };
+		9424F4BF2F2135EE006624A8 /* InkShaders.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = InkShaders.metal; sourceTree = "<group>"; };
+		9424F4C02F2135EE006624A8 /* MetalCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalCanvasView.swift; sourceTree = "<group>"; };
+		9424F4C12F2135EE006624A8 /* MetalRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalRenderer.swift; sourceTree = "<group>"; };
+		9424F4C22F2135EE006624A8 /* StrokeSmoothing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StrokeSmoothing.swift; sourceTree = "<group>"; };
+		9424F4C32F2135EE006624A8 /* TouchCaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TouchCaptureView.swift; sourceTree = "<group>"; };
 		9426DF3D2F1F16320094CE33 /* GeneratorParameters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneratorParameters.swift; sourceTree = "<group>"; };
 		9426DF3F2F1FCE000094CE33 /* GeneratorSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneratorSettingsView.swift; sourceTree = "<group>"; };
 		9426DF412F1FD6260094CE33 /* GeneratorColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneratorColors.swift; sourceTree = "<group>"; };
@@ -87,6 +102,9 @@
 		94474FDE2F1EFD5E0032AB8C /* AIActivityIndicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIActivityIndicator.swift; sourceTree = "<group>"; };
 		94474FE02F1EFD5E0032AB8C /* ControlPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlPanelView.swift; sourceTree = "<group>"; };
 		94474FE12F1EFD5E0032AB8C /* DrawingScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrawingScreen.swift; sourceTree = "<group>"; };
+		944E6B2C2F2050C4008F487C /* CanvasAnalyzer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasAnalyzer.swift; sourceTree = "<group>"; };
+		944E6B2D2F2050C4008F487C /* ContinuousDrawingEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContinuousDrawingEngine.swift; sourceTree = "<group>"; };
+		944E6B2E2F2050C4008F487C /* SpatialDensityMap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpatialDensityMap.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -188,6 +206,7 @@
 		94474FC92F1EFD5E0032AB8C /* AI */ = {
 			isa = PBXGroup;
 			children = (
+				944E6B2F2F2050C4008F487C /* ContinuousDrawing */,
 				9426DF3D2F1F16320094CE33 /* GeneratorParameters.swift */,
 				94474FB02F1EFD5E0032AB8C /* CoreML */,
 				94474FB52F1EFD5E0032AB8C /* DecisionEngine */,
@@ -218,6 +237,7 @@
 		94474FD22F1EFD5E0032AB8C /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				9424F4BD2F2135DE006624A8 /* StrokePoint.swift */,
 				94474FCE2F1EFD5E0032AB8C /* AIState.swift */,
 				94474FCF2F1EFD5E0032AB8C /* DrawingSession.swift */,
 				94474FD02F1EFD5E0032AB8C /* Stroke.swift */,
@@ -246,6 +266,11 @@
 		94474FD72F1EFD5E0032AB8C /* Canvas */ = {
 			isa = PBXGroup;
 			children = (
+				9424F4BF2F2135EE006624A8 /* InkShaders.metal */,
+				9424F4C02F2135EE006624A8 /* MetalCanvasView.swift */,
+				9424F4C12F2135EE006624A8 /* MetalRenderer.swift */,
+				9424F4C22F2135EE006624A8 /* StrokeSmoothing.swift */,
+				9424F4C32F2135EE006624A8 /* TouchCaptureView.swift */,
 				94474FD62F1EFD5E0032AB8C /* DrawingCanvasView.swift */,
 			);
 			path = Canvas;
@@ -303,6 +328,16 @@
 				94474FE22F1EFD5E0032AB8C /* Screens */,
 			);
 			path = UI;
+			sourceTree = "<group>";
+		};
+		944E6B2F2F2050C4008F487C /* ContinuousDrawing */ = {
+			isa = PBXGroup;
+			children = (
+				944E6B2C2F2050C4008F487C /* CanvasAnalyzer.swift */,
+				944E6B2D2F2050C4008F487C /* ContinuousDrawingEngine.swift */,
+				944E6B2E2F2050C4008F487C /* SpatialDensityMap.swift */,
+			);
+			path = ContinuousDrawing;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -400,14 +435,23 @@
 				94474FF72F1EFD5E0032AB8C /* AIStateMachine.swift in Sources */,
 				94474FF82F1EFD5E0032AB8C /* AIActivityIndicator.swift in Sources */,
 				94474FF92F1EFD5E0032AB8C /* PhysicistLens.swift in Sources */,
+				9424F4C42F2135EE006624A8 /* StrokeSmoothing.swift in Sources */,
+				9424F4C52F2135EE006624A8 /* TouchCaptureView.swift in Sources */,
+				9424F4C62F2135EE006624A8 /* InkShaders.metal in Sources */,
+				9424F4C72F2135EE006624A8 /* MetalRenderer.swift in Sources */,
+				9424F4C82F2135EE006624A8 /* MetalCanvasView.swift in Sources */,
 				94474FFA2F1EFD5E0032AB8C /* MLModelManager.swift in Sources */,
 				94474FFB2F1EFD5E0032AB8C /* MotifDetector.swift in Sources */,
 				94474FFC2F1EFD5E0032AB8C /* ControlPanelViewModel.swift in Sources */,
 				94474FFD2F1EFD5E0032AB8C /* DrawingSession.swift in Sources */,
+				9424F4BE2F2135DE006624A8 /* StrokePoint.swift in Sources */,
 				94474FFE2F1EFD5E0032AB8C /* UserProfile.swift in Sources */,
 				94474FFF2F1EFD5E0032AB8C /* ControlPanelView.swift in Sources */,
 				944750002F1EFD5E0032AB8C /* SurpriseGenerator.swift in Sources */,
 				944750012F1EFD5E0032AB8C /* MusicianLens.swift in Sources */,
+				944E6B302F2050C4008F487C /* SpatialDensityMap.swift in Sources */,
+				944E6B312F2050C4008F487C /* ContinuousDrawingEngine.swift in Sources */,
+				944E6B322F2050C4008F487C /* CanvasAnalyzer.swift in Sources */,
 				944750022F1EFD5E0032AB8C /* DrawingViewModel.swift in Sources */,
 				944750032F1EFD5E0032AB8C /* SafetyValidator.swift in Sources */,
 				944750042F1EFD5E0032AB8C /* AIConfiguration.swift in Sources */,

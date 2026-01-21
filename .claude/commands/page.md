@@ -33,8 +33,11 @@ During long development sessions, Claude's context fills up. Running `/compact` 
 **Use the extraction script** from agent-guides repository:
 
 ```bash
-# Run session extraction
-python3 scripts/session_extraction.py
+# Download and run the extract-claude-session.py script
+curl -O https://raw.githubusercontent.com/tokenbender/agent-guides/main/scripts/extract-claude-session.py
+
+# Run it to extract current session
+python3 extract-claude-session.py
 ```
 
 This script:

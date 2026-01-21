@@ -10,9 +10,11 @@ import SwiftUI
 struct GeneratorSettingsView: View {
     @Binding var configuration: AIConfiguration
     @Environment(\.dismiss) var dismiss
-    
+
     var onUserColorChanged: (() -> Void)?
-    
+    var onContinuousModeChanged: ((Bool) -> Void)?
+    var onDrawRateChanged: ((Double) -> Void)?
+
     @State private var refreshID = UUID()
     @State private var selectedTab = 0
     
@@ -103,7 +105,7 @@ struct GeneratorSettingsView: View {
                             .font(.caption).foregroundColor(.secondary)
                         Slider(value: $configuration.musicianWeight, in: 0...3, step: 0.1)
                     }
-                    
+
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Painter Weight: \(String(format: "%.1f", configuration.painterWeight))")
                             .font(.headline)
@@ -111,13 +113,80 @@ struct GeneratorSettingsView: View {
                             .font(.caption).foregroundColor(.secondary)
                         Slider(value: $configuration.painterWeight, in: 0...3, step: 0.1)
                     }
-                    
+
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Physicist Weight: \(String(format: "%.1f", configuration.physicistWeight))")
                             .font(.headline)
                         Text("Emphasis on forces and energy")
                             .font(.caption).foregroundColor(.secondary)
                         Slider(value: $configuration.physicistWeight, in: 0...3, step: 0.1)
+                    }
+                }
+
+                Section("Continuous Co-Drawing") {
+                    Toggle("Enable Continuous Mode", isOn: binding(
+                        get: {
+                            print("📊 Getting continuousModeEnabled: \(configuration.continuousModeEnabled)")
+                            return configuration.continuousModeEnabled
+                        },
+                        set: { newValue in
+                            print("📊 Setting continuousModeEnabled to: \(newValue)")
+                            configuration.continuousModeEnabled = newValue
+                            onContinuousModeChanged?(newValue)
+                            print("📊 Called onContinuousModeChanged callback")
+                        }
+                    ))
+
+                    if configuration.continuousModeEnabled {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("AI Draw Rate: \(String(format: "%.1f", configuration.continuousDrawRate)) strokes/sec")
+                                .font(.headline)
+                            Text("How often AI generates new strokes (0.5-5.0)")
+                                .font(.caption).foregroundColor(.secondary)
+                            Slider(value: binding(
+                                get: { configuration.continuousDrawRate },
+                                set: { newValue in
+                                    configuration.continuousDrawRate = newValue
+                                    onDrawRateChanged?(newValue)
+                                }
+                            ), in: 0.5...5.0, step: 0.5)
+                        }
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Max Density: \(String(format: "%.0f%%", configuration.maxLocalDensity * 100))")
+                                .font(.headline)
+                            Text("AI stops drawing when canvas density exceeds this threshold")
+                                .font(.caption).foregroundColor(.secondary)
+                            Slider(value: $configuration.maxLocalDensity, in: 0.5...1.0, step: 0.05)
+                        }
+                        .padding(.top, 8)
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Start Delay: \(String(format: "%.1f", configuration.startDelay))s")
+                                .font(.headline)
+                            Text("Seconds to wait after you start drawing before AI joins in")
+                                .font(.caption).foregroundColor(.secondary)
+                            Slider(value: $configuration.startDelay, in: 0.0...2.0, step: 0.1)
+                        }
+                        .padding(.top, 8)
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Stop Delay: \(String(format: "%.1f", configuration.stopDelay))s")
+                                .font(.headline)
+                            Text("Seconds after you stop drawing before AI stops")
+                                .font(.caption).foregroundColor(.secondary)
+                            Slider(value: $configuration.stopDelay, in: 0.5...5.0, step: 0.1)
+                        }
+                        .padding(.top, 8)
+
+                        Text("AI continuously draws alongside you, responding to all strokes on canvas")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .padding(.top, 4)
+                    } else {
+                        Text("Enable to have AI draw in real-time as a collaborative partner")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
                     }
                 }
             }

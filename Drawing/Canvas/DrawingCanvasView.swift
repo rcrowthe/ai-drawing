@@ -9,11 +9,15 @@ import SwiftUI
 import PencilKit
 import UIKit
 
+// MARK: - DrawingCanvasView
+
 struct DrawingCanvasView: UIViewRepresentable {
     @Binding var drawing: PKDrawing
     let onStrokeAdded: (PKStroke) -> Void
     let onStrokeRemoved: (PKStroke) -> Void
     let tool: PKTool
+    let onDrawingBegan: () -> Void
+    let onDrawingEnded: () -> Void
 
     func makeUIView(context: Context) -> PKCanvasView {
         print("🎨 DrawingCanvasView: makeUIView called")
@@ -49,7 +53,9 @@ struct DrawingCanvasView: UIViewRepresentable {
         Coordinator(
             drawing: $drawing,
             onStrokeAdded: onStrokeAdded,
-            onStrokeRemoved: onStrokeRemoved
+            onStrokeRemoved: onStrokeRemoved,
+            onDrawingBegan: onDrawingBegan,
+            onDrawingEnded: onDrawingEnded
         )
     }
 
@@ -57,17 +63,23 @@ struct DrawingCanvasView: UIViewRepresentable {
         @Binding var drawing: PKDrawing
         let onStrokeAdded: (PKStroke) -> Void
         let onStrokeRemoved: (PKStroke) -> Void
+        let onDrawingBegan: () -> Void
+        let onDrawingEnded: () -> Void
 
         private var previousStrokeCount = 0
 
         init(
             drawing: Binding<PKDrawing>,
             onStrokeAdded: @escaping (PKStroke) -> Void,
-            onStrokeRemoved: @escaping (PKStroke) -> Void
+            onStrokeRemoved: @escaping (PKStroke) -> Void,
+            onDrawingBegan: @escaping () -> Void,
+            onDrawingEnded: @escaping () -> Void
         ) {
             self._drawing = drawing
             self.onStrokeAdded = onStrokeAdded
             self.onStrokeRemoved = onStrokeRemoved
+            self.onDrawingBegan = onDrawingBegan
+            self.onDrawingEnded = onDrawingEnded
             self.previousStrokeCount = drawing.wrappedValue.strokes.count
         }
 
@@ -100,12 +112,142 @@ struct DrawingCanvasView: UIViewRepresentable {
         }
 
         func canvasViewDidBeginUsingTool(_ canvasView: PKCanvasView) {
-            // User started drawing - could notify AI here
+            // User started drawing
+            print("✏️ User began using tool")
+            onDrawingBegan()
         }
 
         func canvasViewDidEndUsingTool(_ canvasView: PKCanvasView) {
-            // User finished drawing - AI response window starts
+            // User finished drawing
+            print("✏️ User ended using tool")
+            onDrawingEnded()
         }
+    }
+}
+
+// MARK: - AIStrokeOverlayView
+
+/// UIKit view that renders AI strokes in real-time using Core Graphics
+class AIStrokeOverlayUIView: UIView {
+    private var activeStrokes: [(path: UIBezierPath, color: UIColor, width: CGFloat)] = []
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        self.backgroundColor = .clear
+        self.isUserInteractionEnabled = false  // Pass touches through to canvas below
+        print("🎭 AIStrokeOverlayUIView.init with frame: \(frame)")
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        print("🎭 Overlay layoutSubviews - frame: \(frame), bounds: \(bounds)")
+    }
+
+    /// Add an AI stroke to be rendered
+    func addStroke(path: PKStrokePath, color: UIColor, width: CGFloat) {
+        let bezierPath = UIBezierPath()
+
+        // Convert PKStrokePath to UIBezierPath
+        guard path.count > 0 else { return }
+
+        let firstPoint = path[0].location
+        bezierPath.move(to: firstPoint)
+
+        for i in 1..<path.count {
+            let point = path[i].location
+            bezierPath.addLine(to: point)
+        }
+
+        activeStrokes.append((path: bezierPath, color: color, width: width))
+
+        // Trigger redraw
+        DispatchQueue.main.async {
+            self.setNeedsDisplay()
+        }
+
+        print("🎭 Overlay: Added stroke, total active: \(activeStrokes.count)")
+    }
+
+    /// Clear all active strokes (call this after committing to PKDrawing)
+    func clearStrokes() {
+        activeStrokes.removeAll()
+        DispatchQueue.main.async {
+            self.setNeedsDisplay()
+        }
+        print("🎭 Overlay: Cleared all strokes")
+    }
+
+    override func draw(_ rect: CGRect) {
+        guard let context = UIGraphicsGetCurrentContext() else {
+            print("🎭 Overlay.draw: NO GRAPHICS CONTEXT!")
+            return
+        }
+
+        print("🎭 Overlay.draw called - drawing \(activeStrokes.count) strokes in rect: \(rect)")
+
+        // Draw each active stroke
+        for (index, (path, color, width)) in activeStrokes.enumerated() {
+            context.setStrokeColor(color.cgColor)
+            context.setLineWidth(width)
+            context.setLineCap(.round)
+            context.setLineJoin(.round)
+
+            context.addPath(path.cgPath)
+            context.strokePath()
+
+            print("🎭 Drew stroke \(index + 1)/\(activeStrokes.count): color=\(color), width=\(width), bounds=\(path.bounds)")
+        }
+    }
+}
+
+/// SwiftUI wrapper for the overlay view
+struct AIStrokeOverlayView: UIViewRepresentable {
+    @ObservedObject var viewModel: DrawingViewModel
+
+    func makeUIView(context: Context) -> AIStrokeOverlayUIView {
+        print("🎭 AIStrokeOverlayView: makeUIView called")
+        let view = AIStrokeOverlayUIView()
+        return view
+    }
+
+    func updateUIView(_ view: AIStrokeOverlayUIView, context: Context) {
+        print("🎭 AIStrokeOverlayView.updateUIView called - pending: \(viewModel.pendingOverlayStrokes.count), rendered: \(context.coordinator.renderedCount)")
+
+        // Clear overlay if requested
+        if viewModel.shouldClearOverlay {
+            print("🎭 Clearing overlay and resetting count")
+            view.clearStrokes()
+            context.coordinator.renderedCount = 0
+            // Reset flag
+            DispatchQueue.main.async {
+                viewModel.shouldClearOverlay = false
+            }
+            return
+        }
+
+        // Add only NEW strokes that haven't been rendered yet
+        let newStrokeCount = viewModel.pendingOverlayStrokes.count - context.coordinator.renderedCount
+        if newStrokeCount > 0 {
+            print("🎭 Adding \(newStrokeCount) new strokes to overlay")
+            let newStrokes = viewModel.pendingOverlayStrokes.suffix(newStrokeCount)
+            for (move, _) in newStrokes {
+                view.addStroke(path: move.path, color: move.tool.color, width: move.tool.width)
+                context.coordinator.renderedCount += 1
+            }
+            print("🎭 Rendered count now: \(context.coordinator.renderedCount)")
+        }
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    class Coordinator {
+        var renderedCount: Int = 0
     }
 }
 

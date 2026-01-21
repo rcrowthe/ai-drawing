@@ -17,9 +17,13 @@ class SafetyValidator {
 
     /// Validate AI move against all safety constraints
     func isValid(_ move: AIMove, canvasState: CanvasState) -> Bool {
-        return validateCanvasSafety(move, canvasState) &&
-               validateTemporalSafety(move, canvasState) &&
-               validateControlSafety(move, canvasState)
+        let canvasSafe = validateCanvasSafety(move, canvasState)
+        let temporalSafe = validateTemporalSafety(move, canvasState)
+        let controlSafe = validateControlSafety(move, canvasState)
+
+        print("🛡️ SafetyValidator: canvas=\(canvasSafe), temporal=\(temporalSafe), control=\(controlSafe), autonomous=\(canvasState.aiState.autonomousModeEnabled)")
+
+        return canvasSafe && temporalSafe && controlSafe
     }
 
     // MARK: - Canvas Safety
@@ -28,12 +32,19 @@ class SafetyValidator {
         // 1. Check canvas density - prevent overwhelming marks
         let currentDensity = state.session.calculateDensity()
         if currentDensity > maxDensityThreshold {
+            print("🛡️ CanvasSafety: ❌ REJECTED (density \(String(format: "%.4f", currentDensity)) > max \(String(format: "%.4f", maxDensityThreshold)))")
             return false  // Canvas too dense
         }
 
         // 2. Check move size - prevent obstructing user work
         let moveBounds = move.estimatedBoundingBox
-        if moveBounds.area > maxMoveSizeThreshold {
+        let moveArea = moveBounds.area
+
+        // In autonomous/continuous mode, allow larger strokes (structural moves need more space)
+        let effectiveMaxSize = state.aiState.autonomousModeEnabled ? (maxMoveSizeThreshold * 2.5) : maxMoveSizeThreshold
+
+        if moveArea > effectiveMaxSize {
+            print("🛡️ CanvasSafety: ❌ REJECTED (move area \(String(format: "%.0f", moveArea)) > max \(String(format: "%.0f", effectiveMaxSize)))")
             return false  // Move too large
         }
 
@@ -44,18 +55,30 @@ class SafetyValidator {
         if !recentUserStrokes.isEmpty {
             let overlapRatio = calculateOverlap(moveBounds, recentUserStrokes)
             if overlapRatio > maxOverlapThreshold {
+                print("🛡️ CanvasSafety: ❌ REJECTED (overlap \(String(format: "%.2f", overlapRatio)) > max \(String(format: "%.2f", maxOverlapThreshold)))")
                 return false  // Too much overlap
             }
+            print("🛡️ CanvasSafety: ✅ ALLOWED (overlap \(String(format: "%.2f", overlapRatio)) OK)")
         }
 
+        print("🛡️ CanvasSafety: ✅ ALLOWED (all checks passed)")
         return true
     }
 
     // MARK: - Temporal Safety
 
     private func validateTemporalSafety(_ move: AIMove, _ state: CanvasState) -> Bool {
+        print("🛡️ TemporalSafety: autonomousModeEnabled=\(state.aiState.autonomousModeEnabled)")
+
+        // In autonomous/continuous mode, always allow drawing
+        if state.aiState.autonomousModeEnabled {
+            print("🛡️ TemporalSafety: ✅ ALLOWED (autonomous mode)")
+            return true
+        }
+
         // AI acts only during/after user action (unless autonomous mode)
         guard let lastUserStroke = state.aiState.lastUserStrokeTime else {
+            print("🛡️ TemporalSafety: ❌ REJECTED (no last user stroke time)")
             return false
         }
 
@@ -63,13 +86,17 @@ class SafetyValidator {
 
         switch state.aiState.activityState {
         case .activeWithUser:
+            print("🛡️ TemporalSafety: ✅ ALLOWED (active with user)")
             return true  // OK to draw simultaneously
 
         case .responding:
-            return timeSinceUser < responseWindowThreshold  // Within response window
+            let allowed = timeSinceUser < responseWindowThreshold
+            print("🛡️ TemporalSafety: \(allowed ? "✅ ALLOWED" : "❌ REJECTED") (responding, time=\(timeSinceUser)s)")
+            return allowed  // Within response window
 
         case .idle:
-            return state.aiState.autonomousModeEnabled  // Only if autonomous
+            print("🛡️ TemporalSafety: ❌ REJECTED (idle, non-autonomous)")
+            return false  // In non-autonomous mode, idle means no drawing
         }
     }
 

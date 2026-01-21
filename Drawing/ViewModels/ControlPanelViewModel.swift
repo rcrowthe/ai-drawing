@@ -15,14 +15,19 @@ class ControlPanelViewModel: ObservableObject {
     private let persistenceService: PersistenceService
     private var cancellables = Set<AnyCancellable>()
 
+    // Reference to drawing view model for continuous mode control
+    private weak var drawingViewModel: DrawingViewModel?
+
     init(
         initialConfiguration: AIConfiguration,
         persistenceService: PersistenceService,
-        onConfigurationChanged: @escaping (AIConfiguration) -> Void
+        onConfigurationChanged: @escaping (AIConfiguration) -> Void,
+        drawingViewModel: DrawingViewModel? = nil
     ) {
         self.configuration = initialConfiguration
         self.persistenceService = persistenceService
         self.configurationChanged = onConfigurationChanged
+        self.drawingViewModel = drawingViewModel
 
         // Observe configuration changes and propagate them
         setupConfigurationObserver()
@@ -122,5 +127,36 @@ class ControlPanelViewModel: ObservableObject {
 
     var idleTimeoutDescription: String {
         String(format: "%.1fs", configuration.idleTimeout)
+    }
+
+    // MARK: - Continuous Mode Controls
+
+    var continuousModeEnabled: Bool {
+        get { configuration.continuousModeEnabled }
+        set {
+            configuration.continuousModeEnabled = newValue
+            notifyConfigurationChanged()
+        }
+    }
+
+    var continuousDrawRate: Double {
+        get { configuration.continuousDrawRate }
+        set {
+            configuration.continuousDrawRate = newValue
+            notifyConfigurationChanged()
+        }
+    }
+
+    func startContinuousDrawing() {
+        drawingViewModel?.startContinuousDrawing()
+    }
+
+    func stopContinuousDrawing() {
+        drawingViewModel?.stopContinuousDrawing()
+    }
+
+    func setContinuousDrawRate(_ rate: Double) {
+        continuousDrawRate = rate
+        drawingViewModel?.setContinuousDrawRate(rate)
     }
 }
