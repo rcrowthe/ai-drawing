@@ -21,6 +21,7 @@ struct DrawingScreen: View {
                 drawing: $viewModel.pkDrawing,
                 onStrokeAdded: viewModel.handleStrokeAdded,
                 onStrokeRemoved: viewModel.handleStrokeRemoved,
+                onUserStartedDrawing: viewModel.handleUserStartedDrawing,
                 tool: viewModel.selectedTool
             )
             .edgesIgnoringSafeArea(.all)
@@ -31,6 +32,21 @@ struct DrawingScreen: View {
                     Spacer()
                     AIActivityIndicator(aiState: viewModel.aiState)
                         .padding()
+                }
+                Spacer()
+            }
+
+            // AI Status Indicator (shows mode, speeds, etc.)
+            VStack {
+                HStack {
+                    AIStatusIndicator(
+                        aiState: viewModel.aiState,
+                        userSpeed: viewModel.userSpeedText,
+                        aiSpeed: viewModel.aiSpeedText,
+                        lastMoveType: viewModel.lastMoveType
+                    )
+                    .padding()
+                    Spacer()
                 }
                 Spacer()
             }

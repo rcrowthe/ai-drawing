@@ -29,9 +29,9 @@ struct GeneratorParameters {
         /// Number of curve segments (more = smoother, slower to compute)
         static var segments: Int = 2  // MINIMUM for performance (was 4)
 
-        /// Visual appearance
+        /// Visual appearance - medium weight for echo
         static var pointSize: CGFloat = 3.0      // Thickness of stroke points
-        static var strokeWidth: CGFloat = 3.0    // Overall stroke width
+        static var strokeWidth: CGFloat = 3.5    // Medium weight (increased from 3.0)
         static var opacity: CGFloat = 1.0        // 0.0 = invisible, 1.0 = fully visible
         static var force: CGFloat = 0.7          // Apple Pencil pressure simulation
     }
@@ -48,7 +48,7 @@ struct GeneratorParameters {
             static var wobbleAmplitude: CGFloat = 4.0 // Slight organic wobble (0 = perfectly straight)
             static var segments: Int = 8
             static var pointSize: CGFloat = 5.0
-            static var strokeWidth: CGFloat = 4.0
+            static var strokeWidth: CGFloat = 5.0  // Thick for structural (increased from 4.0)
         }
 
         /// CURVE REINFORCEMENT - Parallel curves with arc emphasis
@@ -57,20 +57,20 @@ struct GeneratorParameters {
             static var arcAmplitude: CGFloat = 12.0
             static var segments: Int = 2  // MINIMUM (was 4)
             static var pointSize: CGFloat = 3.0
-            static var strokeWidth: CGFloat = 3.0
+            static var strokeWidth: CGFloat = 4.0  // Thicker (increased from 3.0)
         }
 
         /// ANGLE REINFORCEMENT - Emphasizes corners
         struct Angle {
             static var pointSize: CGFloat = 4.0
-            static var strokeWidth: CGFloat = 4.0
+            static var strokeWidth: CGFloat = 5.0  // Thick (increased from 4.0)
         }
 
         /// CLOSURE SUGGESTION - Closes open shapes
         struct Closure {
             static var segments: Int = 2  // MINIMUM (was 3)
             static var pointSize: CGFloat = 3.0
-            static var strokeWidth: CGFloat = 3.0
+            static var strokeWidth: CGFloat = 4.0  // Thicker (increased from 3.0)
         }
 
         static var opacity: CGFloat = 1.0
@@ -96,7 +96,7 @@ struct GeneratorParameters {
 
         /// Visual appearance
         static var pointSize: CGFloat = 3.0
-        static var strokeWidth: CGFloat = 3.0
+        static var strokeWidth: CGFloat = 3.5  // Increased from 3.0
         static var opacity: CGFloat = 1.0
         static var force: CGFloat = 0.8
     }
@@ -115,7 +115,7 @@ struct GeneratorParameters {
             static var lengthMultiplier: CGFloat = 0.15 // REDUCED (was 0.2)
             static var segments: Int = 2               // REDUCED (was 4)
             static var pointSize: CGFloat = 2.0
-            static var strokeWidth: CGFloat = 2.0
+            static var strokeWidth: CGFloat = 2.5  // Increased from 2.0
         }
 
         /// STIPPLING - Random dots scattered around stroke
@@ -124,7 +124,7 @@ struct GeneratorParameters {
             static var dotCountFocus: Int = 3          // REDUCED (was 5)
             static var radiusMultiplier: CGFloat = 0.3
             static var pointSize: CGFloat = 3.0
-            static var strokeWidth: CGFloat = 2.5
+            static var strokeWidth: CGFloat = 3.0  // Increased from 2.5
         }
 
         /// DOTS - Dots along the stroke path
@@ -132,7 +132,7 @@ struct GeneratorParameters {
             static var dotCount: Int = 3  // REDUCED (was 5)
             static var randomOffsetRange: ClosedRange<CGFloat> = -3.0...3.0
             static var pointSize: CGFloat = 3.0
-            static var strokeWidth: CGFloat = 2.5
+            static var strokeWidth: CGFloat = 3.0  // Increased from 2.5
         }
 
         static var opacity: CGFloat = 1.0
@@ -146,7 +146,7 @@ struct GeneratorParameters {
         static var projectionDistance: CGFloat = 30.0  // REDUCED (was 40)
         static var segments: Int = 2  // MINIMUM (was 4)
         static var pointSize: CGFloat = 3.0
-        static var strokeWidth: CGFloat = 3.0
+        static var strokeWidth: CGFloat = 3.5  // Increased from 3.0
         static var opacity: CGFloat = 1.0
         static var force: CGFloat = 0.7
     }
@@ -175,9 +175,35 @@ struct GeneratorParameters {
 
         /// Visual appearance
         static var pointSize: CGFloat = 3.0
-        static var strokeWidth: CGFloat = 3.0
+        static var strokeWidth: CGFloat = 3.5  // Increased from 3.0
         static var opacity: CGFloat = 1.0
         static var force: CGFloat = 0.7
+    }
+
+    // MARK: - 🌿 IVY GENERATOR (Earthy Green)
+    // Organic vine that follows and jumps between strokes
+
+    struct Ivy {
+        /// Proximity threshold - distance to detect nearby strokes to jump to (pixels)
+        static var proximityThreshold: CGFloat = 30.0
+
+        /// Crisscross probability - chance to flip to other side of stroke (0.0 - 1.0)
+        static var crisscrossProbability: Double = 0.18
+
+        /// Base wave amplitude - how far ivy waves from stroke (pixels)
+        static var baseWaveAmplitude: CGFloat = 10.0
+
+        /// Smoothness - curve smoothness at vertices (0.0 = sharp/square, 1.0 = smooth/round)
+        static var smoothness: Double = 0.8
+
+        /// Total segments - number of points generated along path
+        static var totalSegments: Int = 30
+
+        /// Visual appearance
+        static var pointSize: CGFloat = 2.0
+        static var strokeWidth: CGFloat = 2.5  // Increased from 2.0
+        static var opacity: CGFloat = 0.95  // Increased from 0.85 - was too transparent
+        static var force: CGFloat = 0.6
     }
 }
 

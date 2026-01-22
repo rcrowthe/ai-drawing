@@ -21,13 +21,21 @@ class PainterLens: Lens {
         recentStrokes: [Stroke],
         canvasState: CanvasState
     ) -> LensAnalysis {
+        // ANALYZE ALL STROKES for overall composition
         let allStrokes = canvasState.session.strokes
 
-        // Extract compositional features
+        // Extract compositional features from ALL strokes
         let densityMap = buildDensityMap(allStrokes)
         let balanceScore = calculateBalance(densityMap)
-        let edgeDefinition = analyzeEdges(userStroke, recentStrokes)
         let negativeSpace = calculateNegativeSpace(allStrokes)
+
+        // Also analyze RECENT strokes including latest for edge analysis
+        let recentPlusLatest = recentStrokes + [userStroke]
+        let edgeDefinition = analyzeEdges(userStroke, recentPlusLatest)
+
+        // Analyze JUST the latest stroke for immediate weight/pressure
+        let latestWeight = userStroke.avgPressure  // Heavy vs light
+        let latestLength = userStroke.length
 
         var suggestions: [(AIMoveType, Double)] = []
 
@@ -52,11 +60,34 @@ class PainterLens: Lens {
             suggestions.append((.texture, 0.4))
         }
 
+        // Latest stroke is HEAVY (high pressure) - respond with structural bracing
+        if latestWeight > 0.6 {
+            suggestions.append((.structural, 0.85))  // High confidence for latest stroke
+        }
+
+        // Latest stroke is LONG - reinforce with parallel structure
+        if latestLength > 200.0 {
+            suggestions.append((.structural, 0.75))
+        }
+
+        // Multiple strokes present - ivy can create organic connections
+        // Ivy works best when there are 3+ strokes to weave between
+        if allStrokes.count >= 3 {
+            suggestions.append((.ivy, 0.65))
+        }
+
+        // Many strokes with moderate density - ivy adds organic flow
+        if allStrokes.count >= 5 && densityMap.maxDensity < 8.0 {
+            suggestions.append((.ivy, 0.55))
+        }
+
         let parameters: [String: Double] = [
             "balance": balanceScore,
             "negativeSpace": negativeSpace,
             "edgeStrength": edgeDefinition.strength,
-            "maxDensity": densityMap.maxDensity
+            "maxDensity": densityMap.maxDensity,
+            "latestWeight": latestWeight,  // Track latest stroke separately
+            "latestLength": latestLength
         ]
 
         let urgency = LensAnalysis.calculateUrgency(from: suggestions)
@@ -87,8 +118,25 @@ class PainterLens: Lens {
             let centerX = stroke.boundingBox.midX
             let centerY = stroke.boundingBox.midY
 
-            let cellX = Int((centerX - bounds.minX) / bounds.width * CGFloat(gridSize - 1))
-            let cellY = Int((centerY - bounds.minY) / bounds.height * CGFloat(gridSize - 1))
+            // Safety: Check for NaN/infinity before division
+            guard centerX.isFinite && centerY.isFinite &&
+                  bounds.minX.isFinite && bounds.minY.isFinite &&
+                  bounds.width.isFinite && bounds.height.isFinite else {
+                print("⚠️ PainterLens: Skipping stroke with invalid bounds")
+                continue
+            }
+
+            let normalizedX = (centerX - bounds.minX) / bounds.width
+            let normalizedY = (centerY - bounds.minY) / bounds.height
+
+            // Safety: Check normalized values before multiplication
+            guard normalizedX.isFinite && normalizedY.isFinite else {
+                print("⚠️ PainterLens: Invalid normalized coordinates")
+                continue
+            }
+
+            let cellX = Int(normalizedX * CGFloat(gridSize - 1))
+            let cellY = Int(normalizedY * CGFloat(gridSize - 1))
 
             let clampedX = max(0, min(gridSize - 1, cellX))
             let clampedY = max(0, min(gridSize - 1, cellY))
@@ -190,7 +238,14 @@ class PainterLens: Lens {
             maxY = max(maxY, stroke.boundingBox.maxY)
         }
 
-        return (minX, minY, maxX - minX, maxY - minY)
+        let width = maxX - minX
+        let height = maxY - minY
+
+        // Ensure minimum dimensions to avoid division by zero
+        let safeWidth = max(width, 1.0)
+        let safeHeight = max(height, 1.0)
+
+        return (minX, minY, safeWidth, safeHeight)
     }
 }
 

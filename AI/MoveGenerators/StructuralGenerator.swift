@@ -15,20 +15,21 @@ class StructuralGenerator {
         userStroke: Stroke,
         recentStrokes: [Stroke],
         canvasState: CanvasState,
-        state: AIState
+        state: AIState,
+        configuration: AIConfiguration
     ) -> AIMove? {
         // Analyze what kind of structure to reinforce
         let structureType = analyzeStructure(stroke: userStroke, recentStrokes: recentStrokes)
 
         switch structureType {
         case .edge:
-            return reinforceEdge(stroke: userStroke, state: state)
+            return reinforceEdge(stroke: userStroke, state: state, configuration: configuration)
         case .curve:
-            return reinforceCurve(stroke: userStroke, state: state)
+            return reinforceCurve(stroke: userStroke, state: state, configuration: configuration)
         case .angle:
-            return reinforceAngle(stroke: userStroke, recentStrokes: recentStrokes, state: state)
+            return reinforceAngle(stroke: userStroke, recentStrokes: recentStrokes, state: state, configuration: configuration)
         case .closure:
-            return suggestClosure(stroke: userStroke, recentStrokes: recentStrokes, state: state)
+            return suggestClosure(stroke: userStroke, recentStrokes: recentStrokes, state: state, configuration: configuration)
         }
     }
 
@@ -91,9 +92,17 @@ class StructuralGenerator {
 
     // MARK: - Edge Reinforcement
 
-    private func reinforceEdge(stroke: Stroke, state: AIState) -> AIMove? {
-        // Create a parallel line to reinforce the edge with slight variation
-        let offset: CGFloat = state.attentionMode == .wander ? 40.0 : 20.0
+    private func reinforceEdge(stroke: Stroke, state: AIState, configuration: AIConfiguration) -> AIMove? {
+        // RESPOND TO STROKE QUALITIES
+        // Long, straight strokes (low curvature) → reinforce with parallel structural lines
+        // High pressure strokes → add perpendicular bracing
+
+        let baseOffset: CGFloat = state.attentionMode == .wander ? 40.0 : 20.0
+
+        // PRESSURE RESPONSE: High pressure → closer reinforcement for bracing
+        // AMPLIFIED: Changed from *1.5 to *2.5 for stronger effect
+        let pressureFactor = max(0.3, min(stroke.avgPressure * 2.5, 4.0)) // Wider range
+        let offset = baseOffset / CGFloat(pressureFactor)
 
         // Calculate perpendicular direction
         let dx = stroke.endPoint.x - stroke.startPoint.x
@@ -122,12 +131,17 @@ class StructuralGenerator {
             let x = baseX + perpX * currentOffset
             let y = baseY + perpY * currentOffset
 
+            // PRESSURE RESPONSE: Point size scales with user pressure
+            // Structural strokes are bold, so higher minimum
+            let dynamicSize = 4.0 + (stroke.avgPressure * 2.0)
+            let pointSize = max(4.5, dynamicSize)  // Floor at 4.5 - structural is bold
+
             let point = PKStrokePoint(
                 location: CGPoint(x: x, y: y),
                 timeOffset: TimeInterval(i) * 0.01,
-                size: CGSize(width: 5.0, height: 5.0),
+                size: CGSize(width: pointSize, height: pointSize),
                 opacity: 1.0,
-                force: 0.8,
+                force: 0.8 * stroke.avgPressure,
                 azimuth: 0,
                 altitude: .pi / 4
             )
@@ -136,17 +150,26 @@ class StructuralGenerator {
 
         let path = PKStrokePath(controlPoints: controlPoints, creationDate: Date())
 
+        // PRESSURE RESPONSE: Stroke width scales with pressure
+        let strokeWidth = 2.5 + (stroke.avgPressure * 2.0)
+
+        // Apply color variation from configuration
+        let baseColor = GeneratorColors.structuralColor
+        let variedColor = configuration.applyColorVariation(to: baseColor)
+
+        print("🏗️ StructuralGenerator (edge): pressure=\(String(format: "%.2f", stroke.avgPressure)), length=\(stroke.length.isFinite ? Int(stroke.length) : -1), offset=\(offset.isFinite ? Int(offset) : -1)")
+
         return AIMove(
             moveType: .structural,
             path: path,
-            tool: PKInkingTool(.pen, color: GeneratorColors.structuralColor, width: 3.0),
-            metadata: ["structureType": "edge"]
+            tool: PKInkingTool(.pen, color: variedColor, width: strokeWidth),
+            metadata: ["structureType": "edge", "pressureFactor": pressureFactor]
         )
     }
 
     // MARK: - Curve Reinforcement
 
-    private func reinforceCurve(stroke: Stroke, state: AIState) -> AIMove? {
+    private func reinforceCurve(stroke: Stroke, state: AIState, configuration: AIConfiguration) -> AIMove? {
         print("🏗️ StructuralGenerator: reinforceCurve - creating curved reinforcement")
 
         let offset: CGFloat = 15.0
@@ -200,18 +223,22 @@ class StructuralGenerator {
 
         let path = PKStrokePath(controlPoints: controlPoints, creationDate: Date())
 
+        // Apply color variation from configuration
+        let baseColor = GeneratorColors.structuralColor
+        let variedColor = configuration.applyColorVariation(to: baseColor)
+
         print("🏗️ StructuralGenerator: reinforceCurve - SUCCESS")
         return AIMove(
             moveType: .structural,
             path: path,
-            tool: PKInkingTool(.pen, color: GeneratorColors.structuralColor, width: 3.0),
+            tool: PKInkingTool(.pen, color: variedColor, width: 3.0),
             metadata: ["structureType": "curve"]
         )
     }
 
     // MARK: - Angle Reinforcement
 
-    private func reinforceAngle(stroke: Stroke, recentStrokes: [Stroke], state: AIState) -> AIMove? {
+    private func reinforceAngle(stroke: Stroke, recentStrokes: [Stroke], state: AIState, configuration: AIConfiguration) -> AIMove? {
         // Draw a line connecting recent strokes to emphasize the angle
         guard let prevStroke = recentStrokes.suffix(2).first else { return nil }
 
@@ -236,17 +263,21 @@ class StructuralGenerator {
 
         let path = PKStrokePath(controlPoints: [cornerPoint], creationDate: Date())
 
+        // Apply color variation from configuration
+        let baseColor = GeneratorColors.structuralColor
+        let variedColor = configuration.applyColorVariation(to: baseColor)
+
         return AIMove(
             moveType: .structural,
             path: path,
-            tool: PKInkingTool(.pen, color: GeneratorColors.structuralColor, width: 4.0),
+            tool: PKInkingTool(.pen, color: variedColor, width: 4.0),
             metadata: ["structureType": "angle"]
         )
     }
 
     // MARK: - Closure Suggestion
 
-    private func suggestClosure(stroke: Stroke, recentStrokes: [Stroke], state: AIState) -> AIMove? {
+    private func suggestClosure(stroke: Stroke, recentStrokes: [Stroke], state: AIState, configuration: AIConfiguration) -> AIMove? {
         // Suggest closing an open shape
         guard let firstStroke = recentStrokes.first else { return nil }
 
@@ -277,10 +308,14 @@ class StructuralGenerator {
 
         let path = PKStrokePath(controlPoints: controlPoints, creationDate: Date())
 
+        // Apply color variation from configuration
+        let baseColor = GeneratorColors.structuralColor
+        let variedColor = configuration.applyColorVariation(to: baseColor)
+
         return AIMove(
             moveType: .structural,
             path: path,
-            tool: PKInkingTool(.pen, color: GeneratorColors.structuralColor, width: 3.0),
+            tool: PKInkingTool(.pen, color: variedColor, width: 3.0),
             metadata: ["structureType": "closure"]
         )
     }

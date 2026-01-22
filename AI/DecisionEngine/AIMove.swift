@@ -15,6 +15,7 @@ struct AIMove {
     let tool: PKInkingTool
     let timestamp: Date
     let metadata: [String: Any]
+    let animationSpeed: Double  // 1.0 = normal, 2.0 = twice as fast, 0.5 = half speed
 
     /// Estimated bounding box (for safety validation)
     var estimatedBoundingBox: CGRect {
@@ -43,11 +44,13 @@ struct AIMove {
         moveType: AIMoveType,
         path: PKStrokePath,
         tool: PKInkingTool = PKInkingTool(.marker, color: .cyan, width: 15),
+        animationSpeed: Double = 1.0,
         metadata: [String: Any] = [:]
     ) {
         self.moveType = moveType
         self.path = path
         self.tool = tool
+        self.animationSpeed = animationSpeed
         self.timestamp = Date()
         self.metadata = metadata
     }

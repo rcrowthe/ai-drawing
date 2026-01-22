@@ -187,5 +187,31 @@ struct GeneratorParameters {
         static var opacity: CGFloat = 1.0
         static var force: CGFloat = 0.7
     }
+
+    // MARK: - 🌿 IVY GENERATOR (Earthy Green)
+    // Organic vine that follows and jumps between strokes
+
+    struct Ivy {
+        /// Proximity threshold - distance to detect nearby strokes to jump to (pixels)
+        static var proximityThreshold: CGFloat = 30.0
+
+        /// Crisscross probability - chance to flip to other side of stroke (0.0 - 1.0)
+        static var crisscrossProbability: Double = 0.18
+
+        /// Base wave amplitude - how far ivy waves from stroke (pixels)
+        static var baseWaveAmplitude: CGFloat = 10.0
+
+        /// Smoothness - curve smoothness at vertices (0.0 = sharp/square, 1.0 = smooth/round)
+        static var smoothness: Double = 0.8
+
+        /// Total segments - number of points generated along path
+        static var totalSegments: Int = 30
+
+        /// Visual appearance
+        static var pointSize: CGFloat = 2.0
+        static var strokeWidth: CGFloat = 2.0
+        static var opacity: CGFloat = 0.85
+        static var force: CGFloat = 0.6
+    }
 }
 

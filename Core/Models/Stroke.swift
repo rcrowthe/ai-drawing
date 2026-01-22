@@ -23,6 +23,7 @@ enum AIMoveType: String, Codable {
     case contrast   // Intentional deviation for tension
     case predictive // Placed where AI infers user may go next
     case surprise   // Low-frequency controlled deviation
+    case ivy        // Organic vine that follows and jumps between strokes
 }
 
 /// User feedback on AI strokes

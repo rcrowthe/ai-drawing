@@ -121,7 +121,7 @@ class AIStateMachine: ObservableObject {
         // Calculate overlap density (focus indicator)
         let overlapDensity = calculateOverlapDensity(recentStrokes)
 
-        print("🎯 Metrics: spread=\(Int(spread)), velVar=\(String(format: "%.2f", velocityVariance)), overlap=\(String(format: "%.2f", overlapDensity))")
+        print("🎯 Metrics: spread=\(spread.isFinite ? Int(spread) : -1), velVar=\(String(format: "%.2f", velocityVariance)), overlap=\(String(format: "%.2f", overlapDensity))")
 
         let previousMode = attentionMode
 
@@ -170,6 +170,12 @@ class AIStateMachine: ObservableObject {
         let avgX = points.map { $0.x }.reduce(0, +) / CGFloat(points.count)
         let avgY = points.map { $0.y }.reduce(0, +) / CGFloat(points.count)
 
+        // Safety: Check for NaN in averages
+        guard avgX.isFinite && avgY.isFinite else {
+            print("⚠️ AIStateMachine: Invalid average coordinates in spread calculation")
+            return 0.0
+        }
+
         let variances = points.map { point in
             let dx = point.x - avgX
             let dy = point.y - avgY
@@ -177,6 +183,13 @@ class AIStateMachine: ObservableObject {
         }
 
         let avgVariance = variances.reduce(0, +) / CGFloat(points.count)
+
+        // Safety: Ensure non-negative before sqrt
+        guard avgVariance.isFinite && avgVariance >= 0 else {
+            print("⚠️ AIStateMachine: Invalid variance in spread calculation")
+            return 0.0
+        }
+
         return sqrt(Double(avgVariance))
     }
 

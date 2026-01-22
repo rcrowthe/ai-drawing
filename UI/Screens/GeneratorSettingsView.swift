@@ -199,6 +199,15 @@ struct GeneratorSettingsView: View {
                             set: { GeneratorColors.surpriseColor = UIColor($0) }
                         ))
                     }
+
+                    HStack {
+                        Text("Ivy")
+                        Spacer()
+                        ColorPicker("", selection: binding(
+                            get: { Color(GeneratorColors.ivyColor) },
+                            set: { GeneratorColors.ivyColor = UIColor($0) }
+                        ))
+                    }
                 }
             }
             .navigationTitle("Colors")
@@ -218,6 +227,7 @@ struct GeneratorSettingsView: View {
                     Toggle("Contrast", isOn: $configuration.contrastEnabled)
                     Toggle("Predictive", isOn: $configuration.predictiveEnabled)
                     Toggle("Surprise", isOn: $configuration.surpriseEnabled)
+                    Toggle("Ivy", isOn: $configuration.ivyEnabled)
                 }
             }
             .navigationTitle("Generators")
@@ -252,6 +262,10 @@ struct GeneratorSettingsView: View {
 
                 NavigationLink("Surprise Parameters") {
                     surpriseParametersView()
+                }
+
+                NavigationLink("Ivy Parameters") {
+                    ivyParametersView()
                 }
 
                 Section {
@@ -844,7 +858,110 @@ struct GeneratorSettingsView: View {
         }
         .navigationTitle("Surprise")
     }
-    
+
+    private func ivyParametersView() -> some View {
+        Form {
+            Section {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Proximity Threshold: \(String(format: "%.0f", GeneratorParameters.Ivy.proximityThreshold))")
+                        .font(.headline)
+                    Text("Distance to detect nearby strokes for jumping (pixels)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Slider(value: binding(
+                        get: { Double(GeneratorParameters.Ivy.proximityThreshold) },
+                        set: { GeneratorParameters.Ivy.proximityThreshold = CGFloat($0) }
+                    ), in: 10...100, step: 5)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Crisscross Probability: \(String(format: "%.2f", GeneratorParameters.Ivy.crisscrossProbability))")
+                        .font(.headline)
+                    Text("Chance to flip to other side of stroke (0 = never, 1 = always)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Slider(value: binding(
+                        get: { GeneratorParameters.Ivy.crisscrossProbability },
+                        set: { GeneratorParameters.Ivy.crisscrossProbability = $0 }
+                    ), in: 0...1, step: 0.05)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Wave Amplitude: \(String(format: "%.0f", GeneratorParameters.Ivy.baseWaveAmplitude))")
+                        .font(.headline)
+                    Text("How far ivy waves from the stroke (pixels)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Slider(value: binding(
+                        get: { Double(GeneratorParameters.Ivy.baseWaveAmplitude) },
+                        set: { GeneratorParameters.Ivy.baseWaveAmplitude = CGFloat($0) }
+                    ), in: 0...50, step: 1)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Smoothness: \(String(format: "%.2f", GeneratorParameters.Ivy.smoothness))")
+                        .font(.headline)
+                    Text("Curve smoothness (0 = square/sharp, 1 = round/smooth)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Slider(value: binding(
+                        get: { GeneratorParameters.Ivy.smoothness },
+                        set: { GeneratorParameters.Ivy.smoothness = $0 }
+                    ), in: 0...1, step: 0.05)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Total Segments: \(GeneratorParameters.Ivy.totalSegments)")
+                        .font(.headline)
+                    Text("Number of points in ivy path (higher = longer vine)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Slider(value: binding(
+                        get: { Double(GeneratorParameters.Ivy.totalSegments) },
+                        set: { GeneratorParameters.Ivy.totalSegments = Int($0) }
+                    ), in: 10...60, step: 5)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Point Size: \(String(format: "%.1f", GeneratorParameters.Ivy.pointSize))")
+                        .font(.headline)
+                    Text("Thickness of individual stroke points")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Slider(value: binding(
+                        get: { Double(GeneratorParameters.Ivy.pointSize) },
+                        set: { GeneratorParameters.Ivy.pointSize = CGFloat($0) }
+                    ), in: 1...10, step: 0.5)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Stroke Width: \(String(format: "%.1f", GeneratorParameters.Ivy.strokeWidth))")
+                        .font(.headline)
+                    Text("Overall line thickness")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Slider(value: binding(
+                        get: { Double(GeneratorParameters.Ivy.strokeWidth) },
+                        set: { GeneratorParameters.Ivy.strokeWidth = CGFloat($0) }
+                    ), in: 1...10, step: 0.5)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Opacity: \(String(format: "%.2f", GeneratorParameters.Ivy.opacity))")
+                        .font(.headline)
+                    Text("Transparency (0 = invisible, 1 = fully opaque)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Slider(value: binding(
+                        get: { Double(GeneratorParameters.Ivy.opacity) },
+                        set: { GeneratorParameters.Ivy.opacity = CGFloat($0) }
+                    ), in: 0...1, step: 0.05)
+                }
+            }
+        }
+        .navigationTitle("Ivy")
+    }
+
     private func resetToDefaults() {
         configuration = AIConfiguration()
     }

@@ -241,6 +241,11 @@ struct ProfileInsights {
     }
 
     var totalDrawingTimeFormatted: String {
+        // Safety: Check for valid time before Int conversion
+        guard totalDrawingTime.isFinite && totalDrawingTime >= 0 else {
+            return "0h 0m"
+        }
+
         let hours = Int(totalDrawingTime) / 3600
         let minutes = (Int(totalDrawingTime) % 3600) / 60
         return "\(hours)h \(minutes)m"

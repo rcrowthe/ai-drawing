@@ -188,10 +188,17 @@ class MotifDetector {
 
         // Check for potential circles/loops (high curvature, closed)
         if curvature > 0.5 {
-            let startToEnd = sqrt(
-                pow(stroke.endPoint.x - stroke.startPoint.x, 2) +
-                pow(stroke.endPoint.y - stroke.startPoint.y, 2)
-            )
+            let dx = stroke.endPoint.x - stroke.startPoint.x
+            let dy = stroke.endPoint.y - stroke.startPoint.y
+            let startToEndSquared = pow(dx, 2) + pow(dy, 2)
+
+            // Safety: Check for valid value before sqrt
+            guard startToEndSquared.isFinite && startToEndSquared >= 0 else {
+                print("⚠️ MotifDetector: Invalid distance in loop detection")
+                return "gesture"
+            }
+
+            let startToEnd = sqrt(startToEndSquared)
 
             if startToEnd < length * 0.3 {
                 return "loop"

@@ -239,6 +239,224 @@ struct ControlPanelView: View {
                     Text("Timing")
                 }
 
+                // Animation Speed Section
+                Section {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("Animation Speed")
+                                .font(.headline)
+                            Spacer()
+                            Text(viewModel.animationSpeedDescription)
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+
+                        Slider(
+                            value: Binding(
+                                get: { viewModel.configuration.animationSpeedMultiplier },
+                                set: { viewModel.updateAnimationSpeedMultiplier($0) }
+                            ),
+                            in: 0.5...3.0,
+                            step: 0.1
+                        )
+
+                        Text("Speed multiplier for AI drawing animation")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                } header: {
+                    Text("Animation")
+                }
+
+                // Continuous Drawing Section
+                Section {
+                    VStack(alignment: .leading, spacing: 16) {
+                        // Duration
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("Duration")
+                                    .font(.subheadline)
+                                Spacer()
+                                Text(viewModel.continuousDrawDurationDescription)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            Slider(
+                                value: Binding(
+                                    get: { viewModel.configuration.continuousDrawDuration },
+                                    set: { viewModel.updateContinuousDrawDuration($0) }
+                                ),
+                                in: 0...30,
+                                step: 1.0
+                            )
+                            Text("How long AI continues drawing (0 = disabled)")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+
+                        Divider()
+
+                        // Interval
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("Interval")
+                                    .font(.subheadline)
+                                Spacer()
+                                Text(viewModel.continuousDrawIntervalDescription)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            Slider(
+                                value: Binding(
+                                    get: { viewModel.configuration.continuousDrawInterval },
+                                    set: { viewModel.updateContinuousDrawInterval($0) }
+                                ),
+                                in: 0.1...2.0,
+                                step: 0.1
+                            )
+                            Text("Time between AI strokes")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+
+                        Divider()
+
+                        // Max Strokes
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("Max Strokes")
+                                    .font(.subheadline)
+                                Spacer()
+                                Text(viewModel.continuousDrawMaxStrokesDescription)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            Slider(
+                                value: Binding(
+                                    get: { Double(viewModel.configuration.continuousDrawMaxStrokes) },
+                                    set: { viewModel.updateContinuousDrawMaxStrokes(Int($0)) }
+                                ),
+                                in: 1...100,
+                                step: 5
+                            )
+                            Text("Maximum continuous strokes (safety limit)")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                } header: {
+                    Text("Continuous Drawing")
+                } footer: {
+                    Text("Controls for AI continuous drawing behavior")
+                }
+
+                // Color Variation Section
+                Section {
+                    VStack(alignment: .leading, spacing: 16) {
+                        // Hue Variation
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("Hue Variation")
+                                    .font(.subheadline)
+                                Spacer()
+                                Text(viewModel.colorHueVariationDescription)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            Slider(
+                                value: Binding(
+                                    get: { viewModel.configuration.colorHueVariation },
+                                    set: { viewModel.updateColorHueVariation($0) }
+                                ),
+                                in: 0...360,
+                                step: 10
+                            )
+                            Text("Random hue shift (0-360 degrees)")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+
+                        Divider()
+
+                        // Saturation Variation
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("Saturation Variation")
+                                    .font(.subheadline)
+                                Spacer()
+                                Text(viewModel.colorSaturationVariationDescription)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            Slider(
+                                value: Binding(
+                                    get: { viewModel.configuration.colorSaturationVariation },
+                                    set: { viewModel.updateColorSaturationVariation($0) }
+                                ),
+                                in: 0...1,
+                                step: 0.05
+                            )
+                            Text("Random saturation adjustment")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+
+                        Divider()
+
+                        // Brightness Variation
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("Brightness Variation")
+                                    .font(.subheadline)
+                                Spacer()
+                                Text(viewModel.colorBrightnessVariationDescription)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            Slider(
+                                value: Binding(
+                                    get: { viewModel.configuration.colorBrightnessVariation },
+                                    set: { viewModel.updateColorBrightnessVariation($0) }
+                                ),
+                                in: 0...1,
+                                step: 0.05
+                            )
+                            Text("Random brightness adjustment")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+
+                        Divider()
+
+                        // Opacity Variation
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("Opacity Variation")
+                                    .font(.subheadline)
+                                Spacer()
+                                Text(viewModel.colorOpacityVariationDescription)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            Slider(
+                                value: Binding(
+                                    get: { viewModel.configuration.colorOpacityVariation },
+                                    set: { viewModel.updateColorOpacityVariation($0) }
+                                ),
+                                in: 0...1,
+                                step: 0.05
+                            )
+                            Text("Random opacity adjustment")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                } header: {
+                    Text("Color Variation")
+                } footer: {
+                    Text("Add random variation to AI stroke colors")
+                }
+
                 // Reset Section
                 Section {
                     Button(role: .destructive) {

@@ -65,6 +65,52 @@ class ControlPanelViewModel: ObservableObject {
         notifyConfigurationChanged()
     }
 
+    // MARK: - Continuous Drawing Updates
+
+    func updateContinuousDrawDuration(_ value: Double) {
+        configuration.continuousDrawDuration = value
+        notifyConfigurationChanged()
+    }
+
+    func updateContinuousDrawInterval(_ value: Double) {
+        configuration.continuousDrawInterval = value
+        notifyConfigurationChanged()
+    }
+
+    func updateContinuousDrawMaxStrokes(_ value: Int) {
+        configuration.continuousDrawMaxStrokes = value
+        notifyConfigurationChanged()
+    }
+
+    // MARK: - Color Variation Updates
+
+    func updateColorHueVariation(_ value: Double) {
+        configuration.colorHueVariation = value
+        notifyConfigurationChanged()
+    }
+
+    func updateColorSaturationVariation(_ value: Double) {
+        configuration.colorSaturationVariation = value
+        notifyConfigurationChanged()
+    }
+
+    func updateColorBrightnessVariation(_ value: Double) {
+        configuration.colorBrightnessVariation = value
+        notifyConfigurationChanged()
+    }
+
+    func updateColorOpacityVariation(_ value: Double) {
+        configuration.colorOpacityVariation = value
+        notifyConfigurationChanged()
+    }
+
+    // MARK: - Animation Speed Update
+
+    func updateAnimationSpeedMultiplier(_ value: Double) {
+        configuration.animationSpeedMultiplier = value
+        notifyConfigurationChanged()
+    }
+
     // MARK: - Presets
 
     func applyPreset(_ preset: AIConfiguration.Preset) {
@@ -122,5 +168,37 @@ class ControlPanelViewModel: ObservableObject {
 
     var idleTimeoutDescription: String {
         String(format: "%.1fs", configuration.idleTimeout)
+    }
+
+    var continuousDrawDurationDescription: String {
+        String(format: "%.1fs", configuration.continuousDrawDuration)
+    }
+
+    var continuousDrawIntervalDescription: String {
+        String(format: "%.2fs", configuration.continuousDrawInterval)
+    }
+
+    var continuousDrawMaxStrokesDescription: String {
+        String(format: "%d strokes", configuration.continuousDrawMaxStrokes)
+    }
+
+    var colorHueVariationDescription: String {
+        String(format: "%.0f°", configuration.colorHueVariation)
+    }
+
+    var colorSaturationVariationDescription: String {
+        String(format: "%.0f%%", configuration.colorSaturationVariation * 100)
+    }
+
+    var colorBrightnessVariationDescription: String {
+        String(format: "%.0f%%", configuration.colorBrightnessVariation * 100)
+    }
+
+    var colorOpacityVariationDescription: String {
+        String(format: "%.0f%%", configuration.colorOpacityVariation * 100)
+    }
+
+    var animationSpeedDescription: String {
+        String(format: "%.1fx", configuration.animationSpeedMultiplier)
     }
 }

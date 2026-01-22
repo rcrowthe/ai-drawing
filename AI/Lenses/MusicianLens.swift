@@ -21,11 +21,19 @@ class MusicianLens: Lens {
         recentStrokes: [Stroke],
         canvasState: CanvasState
     ) -> LensAnalysis {
-        // Extract rhythmic features
-        let tempo = calculateTempo(recentStrokes)
-        let acceleration = calculateAcceleration(recentStrokes)
-        let pausePattern = detectPausePattern(recentStrokes)
-        let rhythmicRepetition = detectRhythmicRepetition(recentStrokes)
+        // ANALYZE ALL STROKES but weight the latest (userStroke) more heavily
+        // Combine recent strokes with the current one
+        let allStrokes = recentStrokes + [userStroke]
+
+        // Extract rhythmic features from ALL strokes
+        let tempo = calculateTempo(allStrokes)
+        let acceleration = calculateAcceleration(allStrokes)
+        let pausePattern = detectPausePattern(allStrokes)
+        let rhythmicRepetition = detectRhythmicRepetition(allStrokes)
+
+        // Also analyze JUST the latest stroke for immediate characteristics
+        let latestVelocity = userStroke.avgVelocity
+        let latestPressure = userStroke.avgPressure
 
         var suggestions: [(AIMoveType, Double)] = []
 
@@ -34,7 +42,12 @@ class MusicianLens: Lens {
             suggestions.append((.echo, 0.8))
         }
 
-        // User is accelerating - add excitement with texture
+        // Latest stroke is FAST - immediate texture response (weighted heavily)
+        if latestVelocity > 400.0 {
+            suggestions.append((.texture, 0.9))  // High confidence for latest stroke
+        }
+
+        // User is accelerating (trend across strokes) - add excitement
         if acceleration > accelerationThreshold {
             suggestions.append((.texture, 0.6))
         }
@@ -53,7 +66,9 @@ class MusicianLens: Lens {
             "tempo": tempo,
             "acceleration": acceleration,
             "rhythmicRepetition": rhythmicRepetition,
-            "phraseComplete": pausePattern.isPhrasal ? 1.0 : 0.0
+            "phraseComplete": pausePattern.isPhrasal ? 1.0 : 0.0,
+            "latestVelocity": latestVelocity,  // Track latest stroke separately
+            "latestPressure": latestPressure
         ]
 
         let urgency = LensAnalysis.calculateUrgency(from: suggestions)

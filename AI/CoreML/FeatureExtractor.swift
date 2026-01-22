@@ -62,7 +62,15 @@ class FeatureExtractor {
     private func calculateStartToEndDistance(_ stroke: Stroke) -> Double {
         let dx = stroke.endPoint.x - stroke.startPoint.x
         let dy = stroke.endPoint.y - stroke.startPoint.y
-        return sqrt(dx * dx + dy * dy)
+        let distanceSquared = dx * dx + dy * dy
+
+        // Safety: Check for valid value before sqrt
+        guard distanceSquared.isFinite && distanceSquared >= 0 else {
+            print("⚠️ FeatureExtractor: Invalid distance calculation")
+            return 0.0
+        }
+
+        return sqrt(distanceSquared)
     }
 
     private func calculatePathEfficiency(_ stroke: Stroke) -> Double {
@@ -119,7 +127,15 @@ class FeatureExtractor {
         for stroke in strokes {
             let dx = stroke.boundingBox.midX - centroidX
             let dy = stroke.boundingBox.midY - centroidY
-            totalDistance += sqrt(Double(dx * dx + dy * dy))
+            let distanceSquared = Double(dx * dx + dy * dy)
+
+            // Safety: Check for valid value before sqrt
+            guard distanceSquared.isFinite && distanceSquared >= 0 else {
+                print("⚠️ FeatureExtractor: Invalid distance in spread calculation")
+                continue
+            }
+
+            totalDistance += sqrt(distanceSquared)
         }
 
         return totalDistance / Double(strokes.count)

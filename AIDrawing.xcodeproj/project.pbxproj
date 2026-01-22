@@ -10,6 +10,8 @@
 		9426DF3E2F1F16320094CE33 /* GeneratorParameters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9426DF3D2F1F16320094CE33 /* GeneratorParameters.swift */; };
 		9426DF402F1FCE000094CE33 /* GeneratorSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9426DF3F2F1FCE000094CE33 /* GeneratorSettingsView.swift */; };
 		9426DF422F1FD6260094CE33 /* GeneratorColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9426DF412F1FD6260094CE33 /* GeneratorColors.swift */; };
+		943E5E0E2F21AACA00B00544 /* IvyGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 943E5E0D2F21AACA00B00544 /* IvyGenerator.swift */; };
+		103BF7B61BC6459E824229D8 /* AIStatusIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD4A41A24BE74715876EF077 /* AIStatusIndicator.swift */; };
 		94474FE42F1EFD5E0032AB8C /* AIDecisionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94474FB12F1EFD5E0032AB8C /* AIDecisionEngine.swift */; };
 		94474FE52F1EFD5E0032AB8C /* AIDrawingApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94474FCA2F1EFD5E0032AB8C /* AIDrawingApp.swift */; };
 		94474FE62F1EFD5E0032AB8C /* HistoryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94474FD82F1EFD5E0032AB8C /* HistoryManager.swift */; };
@@ -51,6 +53,8 @@
 		9426DF3D2F1F16320094CE33 /* GeneratorParameters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneratorParameters.swift; sourceTree = "<group>"; };
 		9426DF3F2F1FCE000094CE33 /* GeneratorSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneratorSettingsView.swift; sourceTree = "<group>"; };
 		9426DF412F1FD6260094CE33 /* GeneratorColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneratorColors.swift; sourceTree = "<group>"; };
+		943E5E0D2F21AACA00B00544 /* IvyGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IvyGenerator.swift; sourceTree = "<group>"; };
+		DD4A41A24BE74715876EF077 /* AIStatusIndicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIStatusIndicator.swift; sourceTree = "<group>"; };
 		94474FA02F1EFCE60032AB8C /* aidrawing.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = aidrawing.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		94474FAE2F1EFD5E0032AB8C /* FeatureExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureExtractor.swift; sourceTree = "<group>"; };
 		94474FAF2F1EFD5E0032AB8C /* MLModelManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MLModelManager.swift; sourceTree = "<group>"; };
@@ -166,6 +170,7 @@
 		94474FC62F1EFD5E0032AB8C /* MoveGenerators */ = {
 			isa = PBXGroup;
 			children = (
+				943E5E0D2F21AACA00B00544 /* IvyGenerator.swift */,
 				9426DF412F1FD6260094CE33 /* GeneratorColors.swift */,
 				94474FC02F1EFD5E0032AB8C /* ContrastGenerator.swift */,
 				94474FC12F1EFD5E0032AB8C /* EchoGenerator.swift */,
@@ -282,6 +287,7 @@
 			isa = PBXGroup;
 			children = (
 				94474FDE2F1EFD5E0032AB8C /* AIActivityIndicator.swift */,
+				DD4A41A24BE74715876EF077 /* AIStatusIndicator.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -399,6 +405,7 @@
 				94474FF62F1EFD5E0032AB8C /* ContrastGenerator.swift in Sources */,
 				94474FF72F1EFD5E0032AB8C /* AIStateMachine.swift in Sources */,
 				94474FF82F1EFD5E0032AB8C /* AIActivityIndicator.swift in Sources */,
+				103BF7B61BC6459E824229D8 /* AIStatusIndicator.swift in Sources */,
 				94474FF92F1EFD5E0032AB8C /* PhysicistLens.swift in Sources */,
 				94474FFA2F1EFD5E0032AB8C /* MLModelManager.swift in Sources */,
 				94474FFB2F1EFD5E0032AB8C /* MotifDetector.swift in Sources */,
@@ -414,6 +421,7 @@
 				944750052F1EFD5E0032AB8C /* DrawingScreen.swift in Sources */,
 				944750062F1EFD5E0032AB8C /* PersistenceService.swift in Sources */,
 				9426DF422F1FD6260094CE33 /* GeneratorColors.swift in Sources */,
+				943E5E0E2F21AACA00B00544 /* IvyGenerator.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

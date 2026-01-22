@@ -14,13 +14,14 @@ class AIDecisionEngine: ObservableObject {
     private let lensAggregator: LensAggregator
     private let moveSelector: MoveSelector
 
-    // All 6 move generators
+    // All 7 move generators
     private let echoGenerator: EchoGenerator
     private let textureGenerator: TextureGenerator
     private let structuralGenerator: StructuralGenerator
     private let contrastGenerator: ContrastGenerator
     private let predictiveGenerator: PredictiveGenerator
     private let surpriseGenerator: SurpriseGenerator
+    private let ivyGenerator: IvyGenerator
 
     private var configuration: AIConfiguration
 
@@ -38,6 +39,7 @@ class AIDecisionEngine: ObservableObject {
         self.contrastGenerator = ContrastGenerator()
         self.predictiveGenerator = PredictiveGenerator()
         self.surpriseGenerator = SurpriseGenerator()
+        self.ivyGenerator = IvyGenerator()
     }
 
     /// Decide if AI should respond to a user stroke
@@ -46,17 +48,25 @@ class AIDecisionEngine: ObservableObject {
         session: DrawingSession
     ) -> Bool {
         print("🤖 shouldRespond: checking...")
+
+        // Update state machine with user stroke
+        stateMachine.processUserStroke(userStroke)
+
         let state = stateMachine.getCurrentState()
         print("🤖 Activity state: \(state.activityState)")
+        print("🤖 Attention mode: \(state.attentionMode)")
+        print("🤖 Alignment mode: \(state.alignmentMode)")
 
-        // FOR NOW: Always respond if assertiveness passes (ignore idle state for testing)
-        // TODO: Fix state machine to properly transition from idle to active
+        // Only respond during active or responding states (NOT idle)
+        guard state.activityState == .activeWithUser || state.activityState == .responding else {
+            print("🤖 Final decision: false (idle state - user inactive for >3s)")
+            return false
+        }
 
-        // Check assertiveness
-        let roll = Double.random(in: 0...1)
-        print("🤖 Assertiveness roll: \(roll) vs \(configuration.assertiveness)")
-        let shouldRespond = roll < configuration.assertiveness
-        print("🤖 Final decision: \(shouldRespond)")
+        // AI ALWAYS responds to ANY mark unless user is idle for 3+ seconds
+        // The assertiveness parameter is now just a global on/off switch
+        let shouldRespond = configuration.assertiveness > 0.5 // Essentially always true (set to 1.0)
+        print("🤖 Final decision: \(shouldRespond) (assertiveness=\(configuration.assertiveness))")
         return shouldRespond
     }
 
@@ -67,34 +77,67 @@ class AIDecisionEngine: ObservableObject {
     ) -> AIMove? {
         print("🤖 generateResponse: starting")
 
-        // SKIP state machine updates for speed - just get basic state
         let aiState = stateMachine.getCurrentState()
 
-        // Create minimal canvas state
+        // HEAVILY WEIGHT THE LATEST STROKE
+        // Get recent strokes but the current userStroke is the PRIMARY focus
+        let recentStrokes = session.recentStrokes(window: 5.0) // Shortened window from 10s to 5s
+
+        // Create canvas state
         let canvasState = CanvasState(
             session: session,
             aiState: aiState
         )
 
-        // FAST MODE: Randomly pick move type (skip expensive lens aggregation)
-        // Filter to only enabled generators
-        var enabledMoveTypes: [AIMoveType] = []
-        if configuration.echoEnabled { enabledMoveTypes.append(.echo) }
-        if configuration.textureEnabled { enabledMoveTypes.append(.texture) }
-        if configuration.structuralEnabled { enabledMoveTypes.append(.structural) }
-        if configuration.contrastEnabled { enabledMoveTypes.append(.contrast) }
-        if configuration.predictiveEnabled { enabledMoveTypes.append(.predictive) }
-        if configuration.surpriseEnabled { enabledMoveTypes.append(.surprise) }
+        // LENS-DRIVEN MODE: Aggregate lens analyses
+        // The lenses will analyze the userStroke (most recent) most heavily
+        print("🤖 Running lens aggregation (focused on latest stroke)...")
+        let aggregated = lensAggregator.aggregate(
+            userStroke: userStroke,
+            recentStrokes: recentStrokes,
+            canvasState: canvasState,
+            configuration: configuration
+        )
 
-        guard !enabledMoveTypes.isEmpty else {
-            print("🤖 ERROR: All generators disabled!")
+        // Filter to only enabled generators
+        print("🤖 Filtering generators - configuration states:")
+        print("🤖   echoEnabled: \(configuration.echoEnabled)")
+        print("🤖   textureEnabled: \(configuration.textureEnabled)")
+        print("🤖   structuralEnabled: \(configuration.structuralEnabled)")
+        print("🤖   contrastEnabled: \(configuration.contrastEnabled)")
+        print("🤖   predictiveEnabled: \(configuration.predictiveEnabled)")
+        print("🤖   surpriseEnabled: \(configuration.surpriseEnabled)")
+        print("🤖   ivyEnabled: \(configuration.ivyEnabled)")
+
+        let enabledSuggestions = aggregated.suggestedMoves.filter { moveType, _ in
+            switch moveType {
+            case .echo: return configuration.echoEnabled
+            case .texture: return configuration.textureEnabled
+            case .structural: return configuration.structuralEnabled
+            case .contrast: return configuration.contrastEnabled
+            case .predictive: return configuration.predictiveEnabled
+            case .surprise: return configuration.surpriseEnabled
+            case .ivy: return configuration.ivyEnabled
+            }
+        }
+
+        print("🤖 After filtering: \(enabledSuggestions.count) generators enabled")
+
+        guard !enabledSuggestions.isEmpty else {
+            print("🤖 ERROR: All suggested generators disabled!")
             return nil
         }
 
-        let selectedMoveType = enabledMoveTypes.randomElement()!
-        print("🤖 FAST MODE - Random move type: \(selectedMoveType)")
+        // Use MoveSelector for weighted selection with alignment bias
+        let selectedMoveType = moveSelector.select(
+            from: enabledSuggestions,
+            state: aiState,
+            configuration: configuration
+        )
+        print("🤖 LENS-DRIVEN selection: \(selectedMoveType)")
 
         // Generate move using appropriate generator
+        // The generator will receive userStroke as PRIMARY input
         let proposedMove = generateMove(
             type: selectedMoveType,
             userStroke: userStroke,
@@ -108,6 +151,9 @@ class AIDecisionEngine: ObservableObject {
             return nil
         }
         print("🤖 Move generated successfully")
+
+        // Record the move in state machine for variety tracking
+        stateMachine.recordAIMove(selectedMoveType)
 
         return move
     }
@@ -129,7 +175,8 @@ class AIDecisionEngine: ObservableObject {
                 userStroke: userStroke,
                 recentStrokes: recentStrokes,
                 canvasState: canvasState,
-                state: aiState
+                state: aiState,
+                configuration: configuration
             )
 
         case .texture:
@@ -137,7 +184,8 @@ class AIDecisionEngine: ObservableObject {
                 userStroke: userStroke,
                 recentStrokes: recentStrokes,
                 canvasState: canvasState,
-                state: aiState
+                state: aiState,
+                configuration: configuration
             )
 
         case .structural:
@@ -145,7 +193,8 @@ class AIDecisionEngine: ObservableObject {
                 userStroke: userStroke,
                 recentStrokes: recentStrokes,
                 canvasState: canvasState,
-                state: aiState
+                state: aiState,
+                configuration: configuration
             )
 
         case .contrast:
@@ -153,7 +202,8 @@ class AIDecisionEngine: ObservableObject {
                 userStroke: userStroke,
                 recentStrokes: recentStrokes,
                 canvasState: canvasState,
-                state: aiState
+                state: aiState,
+                configuration: configuration
             )
 
         case .predictive:
@@ -161,7 +211,8 @@ class AIDecisionEngine: ObservableObject {
                 userStroke: userStroke,
                 recentStrokes: recentStrokes,
                 canvasState: canvasState,
-                state: aiState
+                state: aiState,
+                configuration: configuration
             )
 
         case .surprise:
@@ -169,7 +220,17 @@ class AIDecisionEngine: ObservableObject {
                 userStroke: userStroke,
                 recentStrokes: recentStrokes,
                 canvasState: canvasState,
-                state: aiState
+                state: aiState,
+                configuration: configuration
+            )
+
+        case .ivy:
+            return ivyGenerator.generate(
+                userStroke: userStroke,
+                recentStrokes: recentStrokes,
+                canvasState: canvasState,
+                state: aiState,
+                configuration: configuration
             )
         }
     }
