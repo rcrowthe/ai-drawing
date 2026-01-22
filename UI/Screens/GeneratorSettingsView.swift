@@ -93,8 +93,45 @@ struct GeneratorSettingsView: View {
                             .font(.caption).foregroundColor(.secondary)
                         Slider(value: $configuration.idleTimeout, in: 0.5...10, step: 0.5)
                     }
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Animation Speed: \(String(format: "%.2f", configuration.animationSpeedMultiplier))x")
+                            .font(.headline)
+                        Text("How fast AI strokes animate (0.1 = very slow, 1.0 = normal, 3.0 = fast)")
+                            .font(.caption).foregroundColor(.secondary)
+                        Slider(value: $configuration.animationSpeedMultiplier, in: 0.1...3, step: 0.05)
+                    }
                 }
-                
+
+                Section("Continuous Drawing") {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Duration: \(String(format: "%.1f", configuration.continuousDrawDuration))s")
+                            .font(.headline)
+                        Text("How long AI continues after you stop drawing (0 = disabled)")
+                            .font(.caption).foregroundColor(.secondary)
+                        Slider(value: $configuration.continuousDrawDuration, in: 0...30, step: 0.5)
+                    }
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Interval: \(String(format: "%.2f", configuration.continuousDrawInterval))s")
+                            .font(.headline)
+                        Text("Time between continuous AI strokes")
+                            .font(.caption).foregroundColor(.secondary)
+                        Slider(value: $configuration.continuousDrawInterval, in: 0.1...3, step: 0.1)
+                    }
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Max Strokes: \(configuration.continuousDrawMaxStrokes)")
+                            .font(.headline)
+                        Text("Maximum AI strokes in continuous mode (safety limit)")
+                            .font(.caption).foregroundColor(.secondary)
+                        Slider(value: Binding(
+                            get: { Double(configuration.continuousDrawMaxStrokes) },
+                            set: { configuration.continuousDrawMaxStrokes = Int($0) }
+                        ), in: 1...100, step: 1)
+                    }
+                }
+
                 Section("Lens Weights") {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Musician Weight: \(String(format: "%.1f", configuration.musicianWeight))")
@@ -920,6 +957,33 @@ struct GeneratorSettingsView: View {
                         get: { Double(GeneratorParameters.Ivy.totalSegments) },
                         set: { GeneratorParameters.Ivy.totalSegments = Int($0) }
                     ), in: 10...60, step: 5)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Shape Conformance: \(String(format: "%.2f", configuration.ivyShapeConformance))")
+                        .font(.headline)
+                    Text("0 = contrast/perpendicular to shapes, 1 = conform/parallel to shapes")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Slider(value: $configuration.ivyShapeConformance, in: 0...1, step: 0.05)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Shape Detection Min Radius: \(String(format: "%.0f", configuration.ivyShapeDetectionMinRadius))px")
+                        .font(.headline)
+                    Text("Minimum distance to detect shapes (avoid reacting to very close strokes)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Slider(value: $configuration.ivyShapeDetectionMinRadius, in: 10...100, step: 5)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Shape Detection Max Radius: \(String(format: "%.0f", configuration.ivyShapeDetectionMaxRadius))px")
+                        .font(.headline)
+                    Text("Maximum distance to detect shapes (ignore distant strokes)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Slider(value: $configuration.ivyShapeDetectionMaxRadius, in: 100...300, step: 10)
                 }
 
                 VStack(alignment: .leading, spacing: 4) {

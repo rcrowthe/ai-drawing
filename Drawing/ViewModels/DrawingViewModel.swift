@@ -12,13 +12,31 @@ import Combine
 class DrawingViewModel: ObservableObject {
     // Published state
     @Published var currentSession: DrawingSession
-    @Published var pkDrawing: PKDrawing
+    @Published var userPKDrawing: PKDrawing  // NEW: Only user strokes
+    @Published var aiPKDrawing: PKDrawing    // NEW: Only AI strokes
+    @Published var canvasZoomScale: CGFloat = 1.0  // Synchronized zoom between layers
+    @Published var canvasContentOffset: CGPoint = .zero  // Synchronized pan between layers
     @Published var selectedTool: PKTool = PKInkingTool(.pen, color: GeneratorColors.userPenColor, width: 5)
     @Published var canUndo: Bool = false
     @Published var canRedo: Bool = false
     @Published var aiState: AIState = AIState()
     @Published var aiConfiguration: AIConfiguration
     @Published var showAIStrokes: Bool = true  // Phase 8: AI visibility toggle
+
+    // DEPRECATED: Keep for compatibility during transition
+    var pkDrawing: PKDrawing {
+        get {
+            // Combine both drawings for compatibility
+            var combined = PKDrawing()
+            combined.strokes = aiPKDrawing.strokes + userPKDrawing.strokes
+            return combined
+        }
+        set {
+            // Split strokes when set (during load)
+            userPKDrawing = newValue
+            aiPKDrawing = PKDrawing()
+        }
+    }
 
     // Status indicator tracking
     @Published var userSpeedText: String = "---"
@@ -66,21 +84,36 @@ class DrawingViewModel: ObservableObject {
         print("🔧   surpriseEnabled: \(loadedConfig.surpriseEnabled)")
         print("🔧   ivyEnabled: \(loadedConfig.ivyEnabled)")
 
+        // Initialize AI decision engine with configuration
+        self.aiDecisionEngine = AIDecisionEngine(configuration: loadedConfig)
+        print("🔧 AI Decision Engine initialized")
+
         // Try to load existing session or create new one
         if let sessionID = PersistenceService.shared.loadCurrentSessionID(),
            let session = try? PersistenceService.shared.loadSession(id: sessionID) {
             self.currentSession = session
-            self.pkDrawing = session.toPKDrawing()
-            print("🔧 Loaded existing session with \(session.strokes.count) strokes")
+
+            // Split strokes into user and AI canvases
+            var userDrawing = PKDrawing()
+            var aiDrawing = PKDrawing()
+            for stroke in session.strokes {
+                if let pkStroke = stroke.toPKStroke() {
+                    if stroke.source == .user {
+                        userDrawing.strokes.append(pkStroke)
+                    } else {
+                        aiDrawing.strokes.append(pkStroke)
+                    }
+                }
+            }
+            self.userPKDrawing = userDrawing
+            self.aiPKDrawing = aiDrawing
+            print("🔧 Loaded existing session with \(session.strokes.count) strokes (user: \(userDrawing.strokes.count), ai: \(aiDrawing.strokes.count))")
         } else {
             self.currentSession = DrawingSession()
-            self.pkDrawing = PKDrawing()
+            self.userPKDrawing = PKDrawing()
+            self.aiPKDrawing = PKDrawing()
             print("🔧 Created new drawing session")
         }
-
-        // Initialize AI decision engine with configuration
-        self.aiDecisionEngine = AIDecisionEngine(configuration: loadedConfig)
-        print("🔧 AI Decision Engine initialized")
 
         setupBindings()
         print("🔧 DrawingViewModel: init complete")
@@ -120,6 +153,9 @@ class DrawingViewModel: ObservableObject {
         // Create stroke model
         let stroke = Stroke(pkStroke: pkStroke, source: .user)
         print("📝 Stroke created: \(stroke.id)")
+
+        // Add to user canvas immediately (already there from user input)
+        // No need to modify userPKDrawing - it's already updated by the canvas
 
         // Update user speed indicator
         updateUserSpeed(stroke.avgVelocity)
@@ -303,18 +339,24 @@ class DrawingViewModel: ObservableObject {
         let pkStroke = move.toPKStroke()
 
         // Add to PencilKit drawing WITH ANIMATION
+        let strokeID = UUID()  // Generate ID to track this specific stroke
         DispatchQueue.main.async {
             // Animate the stroke being drawn at the specified speed
             self.animateStroke(pkStroke, speed: move.animationSpeed) {
-                // Animation complete
+                // Animation complete - this stroke is now in session, can clear buffer
+                // Clear all completed strokes since they should all be in session now
+                self.completedAnimationStrokes.removeAll()
             }
         }
 
         // Create stroke model
         let stroke = Stroke(pkStroke: pkStroke, source: .ai, moveType: move.moveType)
 
-        // Add to session
+        // Add to session immediately
         currentSession.addStroke(stroke)
+
+        // Update AI canvas to show the new stroke in session
+        updateAIDrawingWithAnimations()
 
         // Record in history
         historyManager.record(.aiStroke(stroke))
@@ -329,99 +371,147 @@ class DrawingViewModel: ObservableObject {
         saveSession()
     }
 
-    // Track strokes currently being animated
-    private var animatingStrokeCount = 0
+    // Track strokes currently being animated - allows multiple concurrent animations
+    private var animatingStrokes: [UUID: AnimatingStroke] = [:]
+    private var completedAnimationStrokes: [PKStroke] = []  // Buffer for strokes that finished animating
+    private var animationTimer: Timer?
 
-    private func animateStroke(_ pkStroke: PKStroke, speed: Double, completion: @escaping () -> Void) {
-        // Get total number of points in the stroke
-        let pointCount = pkStroke.path.count
-        guard pointCount > 1 else {
-            // Not enough points, just add it BELOW user strokes
-            var drawing = self.pkDrawing
-            let insertionIndex = getAIStrokeInsertionIndex(in: drawing.strokes)
-            drawing.strokes.insert(pkStroke, at: insertionIndex)
-            self.pkDrawing = drawing
-            completion()
-            return
+    private struct AnimatingStroke {
+        let fullStroke: PKStroke
+        let speed: Double
+        let startTime: Date
+        var currentStep: Int = 0
+        let totalSteps: Int = 10
+
+        var isComplete: Bool {
+            currentStep >= totalSteps
         }
 
-        // Track the starting stroke count to identify our partial strokes
-        let startingStrokeCount = self.pkDrawing.strokes.count
+        var progress: CGFloat {
+            CGFloat(currentStep) / CGFloat(totalSteps)
+        }
+    }
 
-        // Animate by progressively revealing points over time
-        // Apply configuration speed multiplier (default 2.0 = twice as fast)
-        // speed parameter comes from generator (can vary by stroke properties)
+    private func animateStroke(_ pkStroke: PKStroke, speed: Double, completion: @escaping () -> Void) {
+        let strokeID = UUID()
+
+        // Calculate animation duration
         let finalSpeed = speed * aiConfiguration.animationSpeedMultiplier
         let baseDuration: TimeInterval = 0.1
         let animationDuration = baseDuration / finalSpeed
-        let steps = 10 // Number of animation frames
-        var currentStep = 0
+        let frameInterval = animationDuration / 10.0  // 10 steps
 
-        // Create a timer to progressively add points
-        let timer = Timer.scheduledTimer(withTimeInterval: animationDuration / Double(steps), repeats: true) { [weak self] timer in
+        // Add to animating strokes
+        animatingStrokes[strokeID] = AnimatingStroke(
+            fullStroke: pkStroke,
+            speed: speed,
+            startTime: Date()
+        )
+
+        // Start animation timer if not already running
+        if animationTimer == nil {
+            startAnimationTimer(frameInterval: frameInterval)
+        }
+
+        // Store completion callback - move to completed buffer when done
+        DispatchQueue.main.asyncAfter(deadline: .now() + animationDuration) { [weak self] in
+            guard let self = self else { return }
+
+            // Move to completed strokes buffer
+            if let animating = self.animatingStrokes[strokeID] {
+                self.completedAnimationStrokes.append(animating.fullStroke)
+            }
+            self.animatingStrokes.removeValue(forKey: strokeID)
+
+            // Update display one final time to show complete stroke
+            self.updateAIDrawingWithAnimations()
+
+            completion()
+        }
+    }
+
+    private func startAnimationTimer(frameInterval: TimeInterval) {
+        animationTimer?.invalidate()
+
+        animationTimer = Timer.scheduledTimer(withTimeInterval: frameInterval, repeats: true) { [weak self] timer in
             guard let self = self else {
                 timer.invalidate()
-                completion()
                 return
             }
 
-            currentStep += 1
+            // Update all animating strokes
+            var hasActiveAnimations = false
+            for (id, var stroke) in self.animatingStrokes {
+                stroke.currentStep += 1
+                self.animatingStrokes[id] = stroke
 
-            if currentStep >= steps {
-                // Animation complete - add the full stroke BELOW user strokes
-                timer.invalidate()
-                var drawing = self.pkDrawing
-
-                // Remove the last partial stroke we added
-                if drawing.strokes.count > startingStrokeCount {
-                    _ = drawing.strokes.popLast()
+                if !stroke.isComplete {
+                    hasActiveAnimations = true
                 }
+            }
 
-                // Insert AI stroke BELOW recent user strokes
-                let insertionIndex = self.getAIStrokeInsertionIndex(in: drawing.strokes)
-                drawing.strokes.insert(pkStroke, at: insertionIndex)
-                self.pkDrawing = drawing
-                print("🤖 AI stroke fully animated onto canvas (speed: \(speed)x, config: \(aiConfiguration.animationSpeedMultiplier)x, final: \(String(format: "%.1f", speed * aiConfiguration.animationSpeedMultiplier))x) at index \(insertionIndex). Total strokes: \(drawing.strokes.count)")
-                completion()
+            // Rebuild AI drawing with all partial strokes
+            self.updateAIDrawingWithAnimations()
+
+            // Stop timer if no active animations
+            if !hasActiveAnimations {
+                timer.invalidate()
+                self.animationTimer = nil
+            }
+        }
+
+        RunLoop.main.add(animationTimer!, forMode: .common)
+    }
+
+    private func updateAIDrawingWithAnimations() {
+        var drawing = PKDrawing()
+
+        // Add all completed AI strokes first (from session)
+        for stroke in currentSession.strokes where stroke.source == .ai {
+            if let pkStroke = stroke.toPKStroke() {
+                drawing.strokes.append(pkStroke)
+            }
+        }
+
+        // Add completed animations that haven't been added to session yet
+        for completedStroke in completedAnimationStrokes {
+            drawing.strokes.append(completedStroke)
+        }
+
+        // Add all currently animating strokes (partial or complete)
+        for (_, animating) in animatingStrokes {
+            if animating.isComplete {
+                // Fully animated - add complete stroke
+                drawing.strokes.append(animating.fullStroke)
             } else {
-                // Create partial stroke - take first N points
-                let progress = CGFloat(currentStep) / CGFloat(steps)
-                let targetPointCount = Int(CGFloat(pointCount) * progress)
-
-                if targetPointCount > 0 {
-                    // Get subset of control points
-                    var partialPoints: [PKStrokePoint] = []
-                    for i in 0..<min(targetPointCount, pointCount) {
-                        partialPoints.append(pkStroke.path[i])
-                    }
-
-                    if partialPoints.count > 0 {
-                        let partialPath = PKStrokePath(controlPoints: partialPoints, creationDate: Date())
-                        let partialStroke = PKStroke(ink: pkStroke.ink, path: partialPath)
-
-                        // Replace the last stroke (partial) with updated partial
-                        var drawing = self.pkDrawing
-                        if drawing.strokes.count > startingStrokeCount {
-                            // Remove previous partial and add updated one
-                            _ = drawing.strokes.popLast()
-                        }
-                        // For animation, we can append (it will be repositioned when complete)
-                        drawing.strokes.append(partialStroke)
-                        self.pkDrawing = drawing
-                    }
+                // Still animating - add partial stroke
+                if let partialStroke = createPartialStroke(
+                    from: animating.fullStroke,
+                    progress: animating.progress
+                ) {
+                    drawing.strokes.append(partialStroke)
                 }
             }
         }
 
-        RunLoop.main.add(timer, forMode: .common)
+        self.aiPKDrawing = drawing
     }
 
-    /// Get the index where AI strokes should be inserted (before recent user strokes)
-    /// This ensures user strokes are always rendered on top
-    private func getAIStrokeInsertionIndex(in strokes: [PKStroke]) -> Int {
-        // Simple approach: Insert AI strokes at the beginning
-        // This ensures ALL user strokes are rendered on top of ALL AI strokes
-        return 0
+    private func createPartialStroke(from fullStroke: PKStroke, progress: CGFloat) -> PKStroke? {
+        let pointCount = fullStroke.path.count
+        guard pointCount > 1 else { return nil }
+
+        let targetPointCount = max(1, Int(CGFloat(pointCount) * progress))
+        var partialPoints: [PKStrokePoint] = []
+
+        for i in 0..<min(targetPointCount, pointCount) {
+            partialPoints.append(fullStroke.path[i])
+        }
+
+        guard partialPoints.count > 0 else { return nil }
+
+        let partialPath = PKStrokePath(controlPoints: partialPoints, creationDate: Date())
+        return PKStroke(ink: fullStroke.ink, path: partialPath)
     }
 
     func handleStrokeRemoved(_ pkStroke: PKStroke) {
@@ -630,6 +720,7 @@ class DrawingViewModel: ObservableObject {
 
     deinit {
         stopContinuousDrawing()
+        animationTimer?.invalidate()
         saveSession()
     }
 }

@@ -37,8 +37,11 @@ class PredictiveGenerator {
         )
         let projectionDistance = CGFloat(baseLineLength) * CGFloat(velocityFactor)
 
-        // DIRECTIONAL TREND: Average direction from recent strokes
-        let direction = calculateAverageDirection(allStrokes)
+        // DIRECTIONAL TREND: Average direction with random variation
+        let baseDirection = calculateAverageDirection(allStrokes)
+        // Add directional variation: ±30 degrees to explore possibilities
+        let directionVariation = CGFloat.random(in: -0.52...0.52)  // ±30 degrees in radians
+        let direction = baseDirection + directionVariation
 
         // CURVATURE RESPONSE: Use configuration curvature multiplier with randomness
         let curvatureMultiplier = configuration.applyRandomness(
@@ -46,7 +49,30 @@ class PredictiveGenerator {
             randomness: configuration.predictiveCurvatureRandomness
         )
         let avgCurvature = allStrokes.map { $0.curvature }.reduce(0, +) / Double(allStrokes.count)
-        let shouldCurve = avgCurvature > 0.25
+
+        // VARIETY IN CURVE BEHAVIOR: Mix different prediction styles
+        enum PredictionStyle {
+            case straight           // Continue in direction
+            case gentleCurve       // Slight arc
+            case strongCurve       // Pronounced arc
+            case spiral            // Spiraling motion
+            case overshoot         // Go past expected direction
+        }
+
+        // Choose style based on curvature and randomness
+        let style: PredictionStyle
+        let roll = Double.random(in: 0...1)
+
+        if avgCurvature < 0.15 {
+            // Mostly straight strokes → predict straight or gentle
+            style = roll < 0.6 ? .straight : (roll < 0.85 ? .gentleCurve : .overshoot)
+        } else if avgCurvature < 0.4 {
+            // Moderately curved → variety of curves
+            style = roll < 0.3 ? .gentleCurve : (roll < 0.7 ? .strongCurve : .spiral)
+        } else {
+            // Very curved → predict complex motion
+            style = roll < 0.5 ? .strongCurve : .spiral
+        }
 
         // Project forward from a position along the stroke
         let startT = avgVelocity > 250.0 ? CGFloat.random(in: 0.7...1.0) : CGFloat.random(in: 0.5...0.8)
@@ -63,24 +89,55 @@ class PredictiveGenerator {
         var controlPoints: [PKStrokePoint] = []
         let segments = 6
 
+        // Random curve side for variety (sometimes left, sometimes right)
+        let curveSide = Double.random(in: 0...1) < 0.5 ? 1.0 : -1.0
+
         for i in 0...segments {
             let t = CGFloat(i) / CGFloat(segments)
 
             var x = projectionStart.x + (end.x - projectionStart.x) * t
             var y = projectionStart.y + (end.y - projectionStart.y) * t
 
-            // CURVATURE RESPONSE: Add arc if user strokes were curved, scaled by config
-            if shouldCurve {
-                let arcAmplitude: CGFloat = 20.0 * CGFloat(avgCurvature * curvatureMultiplier)
+            // APPLY PREDICTION STYLE
+            switch style {
+            case .straight:
+                // No modification - continues in predicted direction
+                break
+
+            case .gentleCurve:
+                // Subtle arc using sine wave
+                let arcAmplitude: CGFloat = 15.0 * CGFloat(curvatureMultiplier) * CGFloat(curveSide)
                 let arc = sin(t * .pi) * arcAmplitude
                 x += arc * cos(direction + .pi / 2)
                 y += arc * sin(direction + .pi / 2)
+
+            case .strongCurve:
+                // Pronounced arc with exponential growth
+                let arcAmplitude: CGFloat = 30.0 * CGFloat(curvatureMultiplier) * CGFloat(curveSide)
+                let arc = sin(t * .pi) * arcAmplitude * (1.0 + t * 0.5)  // Grows stronger
+                x += arc * cos(direction + .pi / 2)
+                y += arc * sin(direction + .pi / 2)
+
+            case .spiral:
+                // Spiraling motion with increasing radius
+                let spiralRadius: CGFloat = 25.0 * CGFloat(curvatureMultiplier)
+                let spiralAngle = t * .pi * 3.0  // 1.5 rotations
+                let spiralOffset = spiralRadius * t  // Radius grows
+                x += cos(spiralAngle + direction) * spiralOffset
+                y += sin(spiralAngle + direction) * spiralOffset
+
+            case .overshoot:
+                // Overshoots then corrects back (anticipatory motion)
+                let overshootAmount: CGFloat = 20.0 * CGFloat(curvatureMultiplier)
+                let overshoot = sin(t * .pi * 2.0 - .pi / 2) * overshootAmount * CGFloat(curveSide)
+                x += overshoot * cos(direction + .pi / 2)
+                y += overshoot * sin(direction + .pi / 2)
             }
 
             // PRESSURE RESPONSE: Match user's typical pressure
             let avgPressure = allStrokes.map { $0.avgPressure }.reduce(0, +) / Double(allStrokes.count)
-            let dynamicSize = 2.0 + (avgPressure * 2.0)
-            let pointSize = max(3.5, dynamicSize)
+            let dynamicSize = GeneratorParameters.Predictive.pointSize * (0.8 + avgPressure * 0.4)
+            let pointSize = dynamicSize
 
             let point = PKStrokePoint(
                 location: CGPoint(x: x, y: y),
@@ -96,15 +153,16 @@ class PredictiveGenerator {
 
         let path = PKStrokePath(controlPoints: controlPoints, creationDate: Date())
 
-        // Stroke width based on velocity
-        let strokeWidth = 2.0 + (avgVelocity / 200.0)
+        // Stroke width from settings (respects user configuration!)
+        let strokeWidth = GeneratorParameters.Predictive.strokeWidth
 
         // Apply color variation from configuration
         let baseColor = GeneratorColors.predictiveColor
         let variedColor = configuration.applyColorVariation(to: baseColor)
 
-        print("🔮 PredictiveGenerator: velocity=\(String(format: "%.1f", avgVelocity)), curvature=\(String(format: "%.2f", avgCurvature)), distance=\(projectionDistance.isFinite ? Int(projectionDistance) : -1)")
-        print("🔮   → curved=\(shouldCurve), lineLength=\(String(format: "%.1f", baseLineLength)), curveMult=\(String(format: "%.2f", curvatureMultiplier))")
+        let styleString = "\(style)"
+        print("🔮 PredictiveGenerator: style=\(styleString), velocity=\(String(format: "%.1f", avgVelocity)), curvature=\(String(format: "%.2f", avgCurvature)), distance=\(projectionDistance.isFinite ? Int(projectionDistance) : -1)")
+        print("🔮   → direction=\(String(format: "%.1f", direction * 180 / .pi))°, lineLength=\(String(format: "%.1f", baseLineLength)), curveMult=\(String(format: "%.2f", curvatureMultiplier))")
 
         return AIMove(
             moveType: .predictive,
@@ -113,7 +171,7 @@ class PredictiveGenerator {
             metadata: [
                 "projectedDirection": direction,
                 "velocityFactor": velocityFactor,
-                "curved": shouldCurve,
+                "style": styleString,
                 "lineLength": baseLineLength
             ]
         )

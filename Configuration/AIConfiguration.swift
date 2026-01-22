@@ -29,7 +29,7 @@ struct AIConfiguration: Codable {
     // Animation speed multiplier: controls how fast AI strokes animate (0.5 - 3.0)
     // 1.0 = normal speed, 2.0 = twice as fast, 0.5 = half speed
     // This multiplier is applied ON TOP of per-stroke speed variations
-    var animationSpeedMultiplier: Double = 2.0  // Set to 2.0 for twice as fast
+    var animationSpeedMultiplier: Double = 1.0  // 1.0 = normal speed
 
     // Continuous drawing controls
     var continuousDrawDuration: Double = 10.0   // How long AI continues drawing after user stops (seconds)
@@ -100,6 +100,9 @@ struct AIConfiguration: Codable {
     var ivyWaveAmplitudeRandomness: Double = 0.0
     var ivyProximity: Double = 30.0             // Distance threshold to jump to nearby strokes
     var ivyProximityRandomness: Double = 0.0
+    var ivyShapeConformance: Double = 0.5       // 0=contrast/perpendicular, 1=conform/parallel to shapes
+    var ivyShapeDetectionMinRadius: Double = 50.0  // Minimum distance for shape detection (don't react to very close strokes)
+    var ivyShapeDetectionMaxRadius: Double = 150.0 // Maximum distance for shape detection (don't react to distant strokes)
 
     // MARK: - Colors (stored as RGB components for Codable)
     // User drawing colors - default to dark blue to match generator family

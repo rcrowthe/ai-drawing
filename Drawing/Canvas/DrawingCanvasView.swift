@@ -15,6 +15,9 @@ struct DrawingCanvasView: UIViewRepresentable {
     let onStrokeRemoved: (PKStroke) -> Void
     let onUserStartedDrawing: (() -> Void)?  // Callback when user begins drawing
     let tool: PKTool
+    var isTransparent: Bool = false  // New: supports transparent background for layering
+    @Binding var zoomScale: CGFloat  // Synchronized zoom
+    @Binding var contentOffset: CGPoint  // Synchronized pan
 
     func makeUIView(context: Context) -> PKCanvasView {
         print("🎨 DrawingCanvasView: makeUIView called")
@@ -23,21 +26,30 @@ struct DrawingCanvasView: UIViewRepresentable {
         canvas.drawingPolicy = .anyInput  // Allow mouse/trackpad for simulator
         canvas.tool = tool
         canvas.drawing = drawing
-        canvas.backgroundColor = .white
-        canvas.isOpaque = true
+
+        // Configure background based on transparency mode
+        if isTransparent {
+            canvas.backgroundColor = .clear
+            canvas.isOpaque = false
+            print("🎨 Canvas setup as TRANSPARENT layer (user input layer)")
+        } else {
+            canvas.backgroundColor = .white
+            canvas.isOpaque = true
+            print("🎨 Canvas setup as OPAQUE layer")
+        }
 
         // Enable finger/mouse drawing for simulator testing
         canvas.allowsFingerDrawing = true  // Enable for simulator
         canvas.becomeFirstResponder()
 
-        // Configure zoom behavior
-        canvas.minimumZoomScale = 0.5   // Allow zooming out to 50%
-        canvas.maximumZoomScale = 3.0   // Allow zooming in to 300%
-        canvas.zoomScale = 1.0          // Start at 100% (normal size)
+        // Enable zoom - synchronized across layers
+        canvas.minimumZoomScale = 0.5
+        canvas.maximumZoomScale = 3.0
+        canvas.zoomScale = zoomScale
 
         print("🎨 Canvas setup complete - allowsFingerDrawing: \(canvas.allowsFingerDrawing)")
         print("🎨 Canvas drawingPolicy: \(canvas.drawingPolicy.rawValue)")
-        print("🎨 Canvas zoom configured - min: 0.5, max: 3.0, current: 1.0")
+        print("🎨 Canvas zoom enabled - min: 0.5, max: 3.0, current: \(zoomScale)")
 
         return canvas
     }
@@ -50,11 +62,21 @@ struct DrawingCanvasView: UIViewRepresentable {
 
         // Update tool - always set to ensure it's correct
         canvas.tool = tool
+
+        // Sync zoom and pan from binding (from other canvas or programmatic changes)
+        if abs(canvas.zoomScale - zoomScale) > 0.01 {
+            canvas.zoomScale = zoomScale
+        }
+        if canvas.contentOffset != contentOffset {
+            canvas.contentOffset = contentOffset
+        }
     }
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
             drawing: $drawing,
+            zoomScale: $zoomScale,
+            contentOffset: $contentOffset,
             onStrokeAdded: onStrokeAdded,
             onStrokeRemoved: onStrokeRemoved,
             onUserStartedDrawing: onUserStartedDrawing
@@ -63,6 +85,8 @@ struct DrawingCanvasView: UIViewRepresentable {
 
     class Coordinator: NSObject, PKCanvasViewDelegate {
         @Binding var drawing: PKDrawing
+        @Binding var zoomScale: CGFloat
+        @Binding var contentOffset: CGPoint
         let onStrokeAdded: (PKStroke) -> Void
         let onStrokeRemoved: (PKStroke) -> Void
         let onUserStartedDrawing: (() -> Void)?
@@ -72,11 +96,15 @@ struct DrawingCanvasView: UIViewRepresentable {
 
         init(
             drawing: Binding<PKDrawing>,
+            zoomScale: Binding<CGFloat>,
+            contentOffset: Binding<CGPoint>,
             onStrokeAdded: @escaping (PKStroke) -> Void,
             onStrokeRemoved: @escaping (PKStroke) -> Void,
             onUserStartedDrawing: (() -> Void)?
         ) {
             self._drawing = drawing
+            self._zoomScale = zoomScale
+            self._contentOffset = contentOffset
             self.onStrokeAdded = onStrokeAdded
             self.onStrokeRemoved = onStrokeRemoved
             self.onUserStartedDrawing = onUserStartedDrawing
@@ -151,6 +179,12 @@ struct DrawingCanvasView: UIViewRepresentable {
             // User finished drawing - DON'T reset strokeCountWhenUserStartedDrawing yet
             // It will be reset after processing the strokes in canvasViewDrawingDidChange
             print("✏️ User FINISHED drawing")
+
+            // Report zoom/pan changes to binding
+            DispatchQueue.main.async {
+                self.zoomScale = canvasView.zoomScale
+                self.contentOffset = canvasView.contentOffset
+            }
         }
     }
 }

@@ -18,16 +18,75 @@ class IvyGenerator {
         state: AIState,
         configuration: AIConfiguration
     ) -> AIMove? {
-        // Start from the BEGINNING of the most recent stroke
-        let startPoint = userStroke.startPoint
+        // Start from a RANDOM POINT along the most recent stroke (not always the beginning!)
+        let randomStartProgress = CGFloat.random(in: 0.0...1.0)
+        let startPoint = interpolatePoint(on: userStroke, at: randomStartProgress)
+
+        // Track the origin point to prevent ivy from wandering too far
+        let originPoint = startPoint
+        let maxDistanceFromOrigin: CGFloat = 200.0  // Keep ivy within 200px of where it started
 
         // Get all strokes on canvas for proximity detection
         let allStrokes = canvasState.session.strokes
 
+        // SHAPE AWARENESS: Detect dominant geometric angles nearby
+        let dominantAngle = detectDominantAngle(
+            near: originPoint,
+            strokes: allStrokes,
+            minRadius: CGFloat(configuration.ivyShapeDetectionMinRadius),
+            maxRadius: CGFloat(configuration.ivyShapeDetectionMaxRadius)
+        )
+
+        // Determine ivy's relationship to detected shapes based on conformance setting
+        // 0.0 = contrast/perpendicular, 0.5 = independent, 1.0 = conform/parallel
+        let conformance = configuration.ivyShapeConformance
+
+        // Choose generation mode based on shape detection
+        if let detectedAngle = dominantAngle {
+            // SHAPE-AWARE MODE: React to detected shapes
+            let angleAdjustment = CGFloat((.pi / 2) * (1.0 - conformance))
+            print("🌿 Ivy shape awareness: detected angle=\(Int(detectedAngle * 180 / .pi))°, conformance=\(String(format: "%.2f", conformance)), adjustment=\(Int(angleAdjustment * 180 / .pi))°")
+
+            return generateShapeAwareIvy(
+                userStroke: userStroke,
+                startPoint: startPoint,
+                originPoint: originPoint,
+                maxDistanceFromOrigin: maxDistanceFromOrigin,
+                allStrokes: allStrokes,
+                detectedAngle: detectedAngle,
+                angleAdjustment: angleAdjustment,
+                conformance: conformance,
+                configuration: configuration
+            )
+        } else {
+            // GEOMETRIC MODE: No shapes detected, create geometric patterns
+            print("🌿 Ivy geometric mode: generating geometric pattern")
+
+            return generateGeometricIvy(
+                userStroke: userStroke,
+                startPoint: startPoint,
+                configuration: configuration
+            )
+        }
+    }
+
+    // MARK: - Shape-Aware Ivy Generation
+
+    private func generateShapeAwareIvy(
+        userStroke: Stroke,
+        startPoint: CGPoint,
+        originPoint: CGPoint,
+        maxDistanceFromOrigin: CGFloat,
+        allStrokes: [Stroke],
+        detectedAngle: CGFloat,
+        angleAdjustment: CGFloat,
+        conformance: Double,
+        configuration: AIConfiguration
+    ) -> AIMove? {
         // Generate ivy path
         var controlPoints: [PKStrokePoint] = []
         var currentStroke = userStroke
-        var currentProgress: CGFloat = 0.0
+        var currentProgress: CGFloat = CGFloat.random(in: 0.0...1.0)  // Random start
         var currentSide: CGFloat = 1.0  // 1.0 = right side, -1.0 = left side
         var segmentsSinceLastJump = 0  // Cooldown to prevent excessive jumping
 
@@ -45,7 +104,17 @@ class IvyGenerator {
 
             // Calculate tangent and perpendicular directions
             let tangent = calculateTangent(on: currentStroke, at: t)
-            let perpendicular = CGPoint(x: -tangent.y, y: tangent.x)
+            var perpendicular = CGPoint(x: -tangent.y, y: tangent.x)
+
+            // SHAPE AWARENESS: Adjust perpendicular direction based on detected shapes
+            // Calculate shape-aware direction
+            let targetAngle = detectedAngle + angleAdjustment
+            // Blend the natural perpendicular with the shape-aware direction
+            let blendFactor = abs(conformance - 0.5) * 2.0  // 0 at 0.5, 1 at extremes
+            let shapeAwareX = cos(targetAngle)
+            let shapeAwareY = sin(targetAngle)
+            perpendicular.x = perpendicular.x * CGFloat(1.0 - blendFactor) + shapeAwareX * CGFloat(blendFactor)
+            perpendicular.y = perpendicular.y * CGFloat(1.0 - blendFactor) + shapeAwareY * CGFloat(blendFactor)
 
             // Wave offset (sine wave along the stroke)
             let waveOffset = sin(CGFloat(segmentCount) * waveFrequency) * waveAmplitude * currentSide
@@ -60,9 +129,10 @@ class IvyGenerator {
             let ivyY = strokePoint.y + perpendicular.y * waveOffset
             let ivyPoint = CGPoint(x: ivyX, y: ivyY)
 
-            // Calculate point size (needed for both regular points and transitions)
-            let basePressure = GeneratorParameters.Ivy.pointSize + (userStroke.avgPressure * 1.5)
-            let pointSize = max(basePressure, 3.5)  // Minimum 3.5 to ensure visibility
+            // Calculate point size with subtle pressure variation (respects user settings!)
+            // Range: 0.8x to 1.2x of base pointSize based on stroke pressure
+            let pressureVariation = 0.8 + (userStroke.avgPressure * 0.4)
+            let pointSize = GeneratorParameters.Ivy.pointSize * pressureVariation
 
             // Check for nearby strokes to jump to (with cooldown and randomness)
             segmentsSinceLastJump += 1
@@ -72,6 +142,8 @@ class IvyGenerator {
             if canJump && shouldTryJump {
                 if let (nearbyStroke, landingPoint) = findNearbyStroke(
                     at: ivyPoint,
+                    originPoint: originPoint,
+                    maxDistanceFromOrigin: maxDistanceFromOrigin,
                     currentStroke: currentStroke,
                     allStrokes: allStrokes,
                     proximityThreshold: GeneratorParameters.Ivy.proximityThreshold
@@ -169,6 +241,171 @@ class IvyGenerator {
         )
     }
 
+    // MARK: - Geometric Ivy Generation
+
+    private func generateGeometricIvy(
+        userStroke: Stroke,
+        startPoint: CGPoint,
+        configuration: AIConfiguration
+    ) -> AIMove? {
+        // Choose geometric pattern randomly
+        enum GeometricPattern {
+            case square
+            case circle
+            case triangle  // 3 sides
+            case halfCircle
+        }
+
+        let patterns: [GeometricPattern] = [.square, .circle, .triangle, .halfCircle]
+        let chosenPattern = patterns.randomElement() ?? .circle
+
+        var controlPoints: [PKStrokePoint] = []
+        let totalSegments = GeneratorParameters.Ivy.totalSegments
+        let radius: CGFloat = 40.0 + CGFloat.random(in: -10...20)  // 30-60px radius
+        let basePointSize = GeneratorParameters.Ivy.pointSize
+
+        print("🌿 Generating geometric pattern: \(chosenPattern)")
+
+        switch chosenPattern {
+        case .square:
+            // Square pattern
+            let sideLength = radius * 2.0
+            let halfSide = sideLength / 2.0
+            let corners = [
+                CGPoint(x: startPoint.x - halfSide, y: startPoint.y - halfSide),  // Top-left
+                CGPoint(x: startPoint.x + halfSide, y: startPoint.y - halfSide),  // Top-right
+                CGPoint(x: startPoint.x + halfSide, y: startPoint.y + halfSide),  // Bottom-right
+                CGPoint(x: startPoint.x - halfSide, y: startPoint.y + halfSide),  // Bottom-left
+                CGPoint(x: startPoint.x - halfSide, y: startPoint.y - halfSide)   // Close the square
+            ]
+
+            for i in 0...totalSegments {
+                let t = CGFloat(i) / CGFloat(totalSegments)
+                let edgeIndex = Int(t * 4.0).clamped(to: 0...3)
+                let edgeT = (t * 4.0).truncatingRemainder(dividingBy: 1.0)
+
+                let start = corners[edgeIndex]
+                let end = corners[edgeIndex + 1]
+                let x = start.x + (end.x - start.x) * edgeT
+                let y = start.y + (end.y - start.y) * edgeT
+
+                let point = PKStrokePoint(
+                    location: CGPoint(x: x, y: y),
+                    timeOffset: TimeInterval(i) * 0.015,
+                    size: CGSize(width: basePointSize, height: basePointSize),
+                    opacity: GeneratorParameters.Ivy.opacity,
+                    force: GeneratorParameters.Ivy.force,
+                    azimuth: 0,
+                    altitude: .pi / 4
+                )
+                controlPoints.append(point)
+            }
+
+        case .circle:
+            // Perfect circle
+            for i in 0...totalSegments {
+                let angle = (CGFloat(i) / CGFloat(totalSegments)) * .pi * 2.0
+                let x = startPoint.x + cos(angle) * radius
+                let y = startPoint.y + sin(angle) * radius
+
+                let point = PKStrokePoint(
+                    location: CGPoint(x: x, y: y),
+                    timeOffset: TimeInterval(i) * 0.015,
+                    size: CGSize(width: basePointSize, height: basePointSize),
+                    opacity: GeneratorParameters.Ivy.opacity,
+                    force: GeneratorParameters.Ivy.force,
+                    azimuth: 0,
+                    altitude: .pi / 4
+                )
+                controlPoints.append(point)
+            }
+
+        case .triangle:
+            // Equilateral triangle (3 sides)
+            let height = radius * sqrt(3.0)
+            let corners = [
+                CGPoint(x: startPoint.x, y: startPoint.y - radius),                    // Top vertex
+                CGPoint(x: startPoint.x - height / 2.0, y: startPoint.y + radius / 2.0), // Bottom-left
+                CGPoint(x: startPoint.x + height / 2.0, y: startPoint.y + radius / 2.0), // Bottom-right
+                CGPoint(x: startPoint.x, y: startPoint.y - radius)                     // Close the triangle
+            ]
+
+            for i in 0...totalSegments {
+                let t = CGFloat(i) / CGFloat(totalSegments)
+                let edgeIndex = Int(t * 3.0).clamped(to: 0...2)
+                let edgeT = (t * 3.0).truncatingRemainder(dividingBy: 1.0)
+
+                let start = corners[edgeIndex]
+                let end = corners[edgeIndex + 1]
+                let x = start.x + (end.x - start.x) * edgeT
+                let y = start.y + (end.y - start.y) * edgeT
+
+                let point = PKStrokePoint(
+                    location: CGPoint(x: x, y: y),
+                    timeOffset: TimeInterval(i) * 0.015,
+                    size: CGSize(width: basePointSize, height: basePointSize),
+                    opacity: GeneratorParameters.Ivy.opacity,
+                    force: GeneratorParameters.Ivy.force,
+                    azimuth: 0,
+                    altitude: .pi / 4
+                )
+                controlPoints.append(point)
+            }
+
+        case .halfCircle:
+            // Half circle (semicircle)
+            let randomDirection = Bool.random()  // true = top half, false = bottom half
+            let startAngle: CGFloat = randomDirection ? 0.0 : .pi
+
+            for i in 0...totalSegments {
+                let t = CGFloat(i) / CGFloat(totalSegments)
+                let angle = startAngle + t * .pi  // Draw half circle (π radians)
+                let x = startPoint.x + cos(angle) * radius
+                let y = startPoint.y + sin(angle) * radius
+
+                let point = PKStrokePoint(
+                    location: CGPoint(x: x, y: y),
+                    timeOffset: TimeInterval(i) * 0.015,
+                    size: CGSize(width: basePointSize, height: basePointSize),
+                    opacity: GeneratorParameters.Ivy.opacity,
+                    force: GeneratorParameters.Ivy.force,
+                    azimuth: 0,
+                    altitude: .pi / 4
+                )
+                controlPoints.append(point)
+            }
+        }
+
+        guard controlPoints.count > 1 else {
+            return nil
+        }
+
+        // Apply smoothness for organic feel
+        if GeneratorParameters.Ivy.smoothness > 0.5 {
+            controlPoints = smoothPath(controlPoints, smoothness: GeneratorParameters.Ivy.smoothness * 0.7)  // Less smoothing for geometric patterns
+        }
+
+        let path = PKStrokePath(controlPoints: controlPoints, creationDate: Date())
+
+        // Geometric patterns animate at moderate speed
+        let animationSpeed = 1.0
+
+        // Apply color variation
+        let baseColor = GeneratorColors.ivyColor
+        let variedColor = configuration.applyColorVariation(to: baseColor)
+
+        return AIMove(
+            moveType: .ivy,
+            path: path,
+            tool: PKInkingTool(.pen, color: variedColor, width: GeneratorParameters.Ivy.strokeWidth),
+            animationSpeed: animationSpeed,
+            metadata: [
+                "pattern": "\(chosenPattern)",
+                "geometric": true
+            ]
+        )
+    }
+
     // MARK: - Helper Methods
 
     /// Interpolate point along stroke at parameter t (0.0 to 1.0)
@@ -202,9 +439,12 @@ class IvyGenerator {
     }
 
     /// Find nearby stroke within proximity threshold and return the closest point on it
+    /// Also ensures the stroke is within maxDistanceFromOrigin to prevent wandering too far
     /// Returns tuple of (stroke, t parameter where 0=start, 1=end)
     private func findNearbyStroke(
         at point: CGPoint,
+        originPoint: CGPoint,
+        maxDistanceFromOrigin: CGFloat,
         currentStroke: Stroke,
         allStrokes: [Stroke],
         proximityThreshold: CGFloat
@@ -214,8 +454,9 @@ class IvyGenerator {
         var closestDistance: CGFloat = proximityThreshold
 
         for stroke in allStrokes {
-            // Skip current stroke and AI strokes
-            if stroke.id == currentStroke.id || stroke.source == .ai {
+            // Skip only the current stroke we're already following
+            // Allow jumping to ANY other stroke (including AI strokes!)
+            if stroke.id == currentStroke.id {
                 continue
             }
 
@@ -226,7 +467,18 @@ class IvyGenerator {
                 lineEnd: stroke.endPoint
             )
 
-            let distance = point.distance(to: closestPointOnStroke)
+            // Calculate distance from current ivy point to this stroke
+            let dx1 = point.x - closestPointOnStroke.x
+            let dy1 = point.y - closestPointOnStroke.y
+            let distance = sqrt(dx1 * dx1 + dy1 * dy1)
+
+            // CHECK: Would this jump take us too far from origin?
+            let dx2 = originPoint.x - closestPointOnStroke.x
+            let dy2 = originPoint.y - closestPointOnStroke.y
+            let distanceFromOrigin = sqrt(dx2 * dx2 + dy2 * dy2)
+            if distanceFromOrigin > maxDistanceFromOrigin {
+                continue  // Skip this stroke - too far from where we started
+            }
 
             if distance < closestDistance {
                 closestDistance = distance
@@ -318,5 +570,80 @@ class IvyGenerator {
         smoothed.append(points[points.count - 1])
 
         return smoothed
+    }
+
+    /// Detect dominant geometric angle from nearby strokes
+    /// Returns angle in radians, or nil if no clear pattern detected
+    /// Uses min/max radius to avoid reacting to strokes that are too close or too far
+    private func detectDominantAngle(
+        near point: CGPoint,
+        strokes: [Stroke],
+        minRadius: CGFloat,
+        maxRadius: CGFloat
+    ) -> CGFloat? {
+        var nearbyAngles: [CGFloat] = []
+
+        // Collect angles from nearby strokes (within distance band)
+        for stroke in strokes {
+            // Check if stroke is within search radius band
+            let midPoint = CGPoint(
+                x: (stroke.startPoint.x + stroke.endPoint.x) / 2.0,
+                y: (stroke.startPoint.y + stroke.endPoint.y) / 2.0
+            )
+
+            let dx = point.x - midPoint.x
+            let dy = point.y - midPoint.y
+            let distance = sqrt(dx * dx + dy * dy)
+
+            // Only consider strokes in the distance band
+            if distance >= minRadius && distance <= maxRadius {
+                // Calculate stroke angle
+                let angle = atan2(
+                    stroke.endPoint.y - stroke.startPoint.y,
+                    stroke.endPoint.x - stroke.startPoint.x
+                )
+                nearbyAngles.append(angle)
+            }
+        }
+
+        guard nearbyAngles.count >= 2 else {
+            return nil  // Not enough data for pattern detection
+        }
+
+        // Find dominant angle using circular mean
+        var sumSin: CGFloat = 0.0
+        var sumCos: CGFloat = 0.0
+
+        for angle in nearbyAngles {
+            sumSin += sin(angle)
+            sumCos += cos(angle)
+        }
+
+        let meanAngle = atan2(sumSin, sumCos)
+
+        // Check if there's a strong consensus (low variance)
+        var variance: CGFloat = 0.0
+        for angle in nearbyAngles {
+            let diff = angle - meanAngle
+            variance += diff * diff
+        }
+        variance /= CGFloat(nearbyAngles.count)
+
+        // Only return angle if there's a clear pattern (low variance)
+        // Variance < 1.0 indicates reasonably aligned strokes
+        if variance < 1.0 {
+            print("🌿 Shape detected: \(nearbyAngles.count) strokes, angle=\(Int(meanAngle * 180 / .pi))°, variance=\(String(format: "%.2f", variance))")
+            return meanAngle
+        }
+
+        return nil  // Too much variation, no clear pattern
+    }
+}
+
+// MARK: - Helper Extensions
+
+extension Int {
+    public func clamped(to range: ClosedRange<Int>) -> Int {
+        return Swift.min(Swift.max(self, range.lowerBound), range.upperBound)
     }
 }

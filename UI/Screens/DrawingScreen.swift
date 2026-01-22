@@ -16,13 +16,24 @@ struct DrawingScreen: View {
     var body: some View {
         print("🖼️ DrawingScreen body rendering")
         return ZStack {
-            // Main canvas
+            // DUAL-LAYER CANVAS SYSTEM FOR RELIABLE USER INPUT
+            // Layer 1 (Bottom): AI strokes only - non-interactive, synchronized zoom
+            AICanvasLayer(
+                drawing: $viewModel.aiPKDrawing,
+                zoomScale: $viewModel.canvasZoomScale,
+                contentOffset: $viewModel.canvasContentOffset
+            )
+
+            // Layer 2 (Top): User strokes only - always interactive, transparent
             DrawingCanvasView(
-                drawing: $viewModel.pkDrawing,
+                drawing: $viewModel.userPKDrawing,
                 onStrokeAdded: viewModel.handleStrokeAdded,
                 onStrokeRemoved: viewModel.handleStrokeRemoved,
                 onUserStartedDrawing: viewModel.handleUserStartedDrawing,
-                tool: viewModel.selectedTool
+                tool: viewModel.selectedTool,
+                isTransparent: true,  // Transparent to show AI strokes below
+                zoomScale: $viewModel.canvasZoomScale,
+                contentOffset: $viewModel.canvasContentOffset
             )
             .edgesIgnoringSafeArea(.all)
 
@@ -148,6 +159,45 @@ struct DrawingScreen: View {
                     }
                 )
             }
+        }
+    }
+}
+
+/// Non-interactive canvas layer for displaying AI strokes below user layer
+struct AICanvasLayer: UIViewRepresentable {
+    @Binding var drawing: PKDrawing
+    @Binding var zoomScale: CGFloat
+    @Binding var contentOffset: CGPoint
+
+    func makeUIView(context: Context) -> PKCanvasView {
+        let canvas = PKCanvasView()
+        canvas.drawing = drawing
+        canvas.backgroundColor = .white
+        canvas.isOpaque = true
+        canvas.isUserInteractionEnabled = false  // No touch interaction
+        canvas.drawingPolicy = .default
+
+        // Match zoom configuration of user canvas
+        canvas.minimumZoomScale = 0.5
+        canvas.maximumZoomScale = 3.0
+        canvas.zoomScale = zoomScale
+
+        print("🎨 AI Canvas Layer created - non-interactive, zoom-synced")
+        return canvas
+    }
+
+    func updateUIView(_ canvas: PKCanvasView, context: Context) {
+        // Update when AI strokes are added
+        if canvas.drawing != drawing {
+            canvas.drawing = drawing
+        }
+
+        // Sync zoom and pan with user canvas
+        if abs(canvas.zoomScale - zoomScale) > 0.01 {
+            canvas.zoomScale = zoomScale
+        }
+        if canvas.contentOffset != contentOffset {
+            canvas.contentOffset = contentOffset
         }
     }
 }
