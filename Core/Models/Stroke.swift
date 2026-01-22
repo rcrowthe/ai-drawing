@@ -67,8 +67,10 @@ struct Stroke: Identifiable, Codable {
             requiringSecureCoding: false
         ) {
             self.pkStrokeData = data
+            print("💾 Stroke \(id): Archived PKStroke successfully (\(data.count) bytes)")
         } else {
             self.pkStrokeData = Data()
+            print("⚠️ Stroke \(id): FAILED to archive PKStroke - pkStrokeData is empty!")
         }
 
         // Calculate and cache geometry
@@ -96,8 +98,18 @@ struct Stroke: Identifiable, Codable {
 
     /// Reconstruct PKStroke from encoded data
     func toPKStroke() -> PKStroke? {
-        guard !pkStrokeData.isEmpty else { return nil }
-        return try? NSKeyedUnarchiver.unarchiveTopLevelObjectWithData(pkStrokeData) as? PKStroke
+        guard !pkStrokeData.isEmpty else {
+            print("⚠️ Stroke \(id): toPKStroke() failed - pkStrokeData is empty")
+            return nil
+        }
+
+        if let pkStroke = try? NSKeyedUnarchiver.unarchiveTopLevelObjectWithData(pkStrokeData) as? PKStroke {
+            print("✅ Stroke \(id): Successfully unarchived PKStroke")
+            return pkStroke
+        } else {
+            print("⚠️ Stroke \(id): Unarchiving failed - data exists (\(pkStrokeData.count) bytes) but couldn't decode")
+            return nil
+        }
     }
 
     // MARK: - Geometry Calculation Helpers
