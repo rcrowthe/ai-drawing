@@ -338,25 +338,12 @@ class DrawingViewModel: ObservableObject {
         // Convert to PKStroke
         let pkStroke = move.toPKStroke()
 
-        // Add to PencilKit drawing WITH ANIMATION
-        let strokeID = UUID()  // Generate ID to track this specific stroke
-        DispatchQueue.main.async {
-            // Animate the stroke being drawn at the specified speed
-            self.animateStroke(pkStroke, speed: move.animationSpeed) {
-                // Animation complete - this stroke is now in session, can clear buffer
-                // Clear all completed strokes since they should all be in session now
-                self.completedAnimationStrokes.removeAll()
-            }
-        }
-
-        // Create stroke model
+        // Create stroke model BEFORE animation
         let stroke = Stroke(pkStroke: pkStroke, source: .ai, moveType: move.moveType)
 
-        // Add to session immediately
+        // Add to session ONLY for AI logic (so next AI move can react to this stroke)
+        // But DON'T render it from session yet - let animation handle rendering
         currentSession.addStroke(stroke)
-
-        // Update AI canvas to show the new stroke in session
-        updateAIDrawingWithAnimations()
 
         // Record in history
         historyManager.record(.aiStroke(stroke))
@@ -369,14 +356,24 @@ class DrawingViewModel: ObservableObject {
 
         // Save session
         saveSession()
+
+        // Animate the stroke (rendering is handled by animation system)
+        DispatchQueue.main.async {
+            self.animateStroke(pkStroke, speed: move.animationSpeed, strokeModel: stroke) {
+                // Animation complete - stroke is already in session, just update display
+                print("🎬 Animation complete for stroke \(stroke.id)")
+            }
+        }
     }
 
     // Track strokes currently being animated - allows multiple concurrent animations
     private var animatingStrokes: [UUID: AnimatingStroke] = [:]
-    private var completedAnimationStrokes: [PKStroke] = []  // Buffer for strokes that finished animating
+    // Track which stroke IDs are currently animating (to avoid rendering duplicates from session)
+    private var currentlyAnimatingStrokeIDs: Set<UUID> = []
     private var animationTimer: Timer?
 
     private struct AnimatingStroke {
+        let strokeID: UUID  // ID of the Stroke model
         let fullStroke: PKStroke
         let speed: Double
         let startTime: Date
@@ -392,8 +389,11 @@ class DrawingViewModel: ObservableObject {
         }
     }
 
-    private func animateStroke(_ pkStroke: PKStroke, speed: Double, completion: @escaping () -> Void) {
-        let strokeID = UUID()
+    private func animateStroke(_ pkStroke: PKStroke, speed: Double, strokeModel: Stroke, completion: @escaping () -> Void) {
+        let animationID = UUID()  // Unique ID for this animation
+
+        // Track that this stroke is animating (to avoid rendering from session)
+        currentlyAnimatingStrokeIDs.insert(strokeModel.id)
 
         // Calculate animation duration
         let finalSpeed = speed * aiConfiguration.animationSpeedMultiplier
@@ -402,7 +402,8 @@ class DrawingViewModel: ObservableObject {
         let frameInterval = animationDuration / 10.0  // 10 steps
 
         // Add to animating strokes
-        animatingStrokes[strokeID] = AnimatingStroke(
+        animatingStrokes[animationID] = AnimatingStroke(
+            strokeID: strokeModel.id,
             fullStroke: pkStroke,
             speed: speed,
             startTime: Date()
@@ -413,17 +414,18 @@ class DrawingViewModel: ObservableObject {
             startAnimationTimer(frameInterval: frameInterval)
         }
 
-        // Store completion callback - move to completed buffer when done
+        // Update display immediately to show animation start
+        updateAIDrawingWithAnimations()
+
+        // Handle completion when animation finishes
         DispatchQueue.main.asyncAfter(deadline: .now() + animationDuration) { [weak self] in
             guard let self = self else { return }
 
-            // Move to completed strokes buffer
-            if let animating = self.animatingStrokes[strokeID] {
-                self.completedAnimationStrokes.append(animating.fullStroke)
-            }
-            self.animatingStrokes.removeValue(forKey: strokeID)
+            // Remove from animating state
+            self.animatingStrokes.removeValue(forKey: animationID)
+            self.currentlyAnimatingStrokeIDs.remove(strokeModel.id)
 
-            // Update display one final time to show complete stroke
+            // Update display one final time to show complete stroke from session
             self.updateAIDrawingWithAnimations()
 
             completion()
@@ -466,16 +468,16 @@ class DrawingViewModel: ObservableObject {
     private func updateAIDrawingWithAnimations() {
         var drawing = PKDrawing()
 
-        // Add all completed AI strokes first (from session)
+        // Add all completed AI strokes from session (skip ones currently animating to avoid duplicates)
         for stroke in currentSession.strokes where stroke.source == .ai {
+            // Skip if this stroke is currently being animated
+            if currentlyAnimatingStrokeIDs.contains(stroke.id) {
+                continue
+            }
+
             if let pkStroke = stroke.toPKStroke() {
                 drawing.strokes.append(pkStroke)
             }
-        }
-
-        // Add completed animations that haven't been added to session yet
-        for completedStroke in completedAnimationStrokes {
-            drawing.strokes.append(completedStroke)
         }
 
         // Add all currently animating strokes (partial or complete)
