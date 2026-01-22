@@ -468,23 +468,40 @@ class DrawingViewModel: ObservableObject {
     private func updateAIDrawingWithAnimations() {
         var drawing = PKDrawing()
 
+        // Debug: Count what we're about to add
+        let totalAIStrokesInSession = currentSession.strokes.filter { $0.source == .ai }.count
+        var skippedCount = 0
+        var addedFromSessionCount = 0
+
+        print("📊 updateAIDrawing START")
+        print("📊   Total AI strokes in session: \(totalAIStrokesInSession)")
+        print("📊   Currently animating stroke IDs: \(currentlyAnimatingStrokeIDs.count)")
+        print("📊   Active animations: \(animatingStrokes.count)")
+
         // Add all completed AI strokes from session (skip ones currently animating to avoid duplicates)
         for stroke in currentSession.strokes where stroke.source == .ai {
             // Skip if this stroke is currently being animated
             if currentlyAnimatingStrokeIDs.contains(stroke.id) {
+                skippedCount += 1
                 continue
             }
 
             if let pkStroke = stroke.toPKStroke() {
                 drawing.strokes.append(pkStroke)
+                addedFromSessionCount += 1
             }
         }
 
+        print("📊   Skipped (animating): \(skippedCount)")
+        print("📊   Added from session: \(addedFromSessionCount)")
+
         // Add all currently animating strokes (partial or complete)
+        var addedAnimatingCount = 0
         for (_, animating) in animatingStrokes {
             if animating.isComplete {
                 // Fully animated - add complete stroke
                 drawing.strokes.append(animating.fullStroke)
+                addedAnimatingCount += 1
             } else {
                 // Still animating - add partial stroke
                 if let partialStroke = createPartialStroke(
@@ -492,9 +509,14 @@ class DrawingViewModel: ObservableObject {
                     progress: animating.progress
                 ) {
                     drawing.strokes.append(partialStroke)
+                    addedAnimatingCount += 1
                 }
             }
         }
+
+        print("📊   Added from animations: \(addedAnimatingCount)")
+        print("📊   TOTAL strokes in final drawing: \(drawing.strokes.count)")
+        print("📊 updateAIDrawing END\n")
 
         self.aiPKDrawing = drawing
     }

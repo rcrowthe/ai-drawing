@@ -187,10 +187,9 @@ struct AICanvasLayer: UIViewRepresentable {
     }
 
     func updateUIView(_ canvas: PKCanvasView, context: Context) {
-        // Update when AI strokes are added
-        if canvas.drawing != drawing {
-            canvas.drawing = drawing
-        }
+        // ALWAYS update drawing - comparison can be unreliable with PKDrawing
+        print("🎨 AICanvasLayer updateUIView - drawing has \(drawing.strokes.count) strokes")
+        canvas.drawing = drawing
 
         // Sync zoom and pan with user canvas
         if abs(canvas.zoomScale - zoomScale) > 0.01 {
