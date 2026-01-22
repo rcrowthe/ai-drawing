@@ -387,9 +387,14 @@ class DrawingViewModel: ObservableObject {
     // Track strokes currently being animated - allows multiple concurrent animations
     private var animatingStrokes: [UUID: AnimatingStroke] = [:]
     private var currentlyAnimatingStrokeIDs: Set<UUID> = []
+    private var completedAnimationsBuffer: [UUID] = []  // PERFORMANCE: Batch animation completions
     private var displayLink: CADisplayLink?  // For 60fps vsync animation
     private var lastAnimationUpdateTime: Date = Date()  // Throttle animation updates
-    private let minUpdateInterval: TimeInterval = 1.0 / 15.0  // Max 15fps for animation updates (reduce overhead)
+    private let minUpdateInterval: TimeInterval = 1.0 / 10.0  // Max 10fps for animation updates (optimize main thread)
+
+    // PERFORMANCE OPTIMIZATION: Cache completed strokes to avoid rebuilding every frame
+    private var cachedCompletedDrawing = PKDrawing()
+    private var cachedAIStrokeCount = 0
 
     private struct AnimatingStroke {
         let strokeID: UUID  // ID of the Stroke model
@@ -443,13 +448,11 @@ class DrawingViewModel: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + animationDuration) { [weak self] in
             guard let self = self else { return }
 
-            // Remove from animating state
-            self.animatingStrokes.removeValue(forKey: animationID)
+            // PERFORMANCE: Add to batch buffer instead of removing immediately
+            self.completedAnimationsBuffer.append(animationID)
             self.currentlyAnimatingStrokeIDs.remove(strokeModel.id)
 
-            // Update display one final time to show complete stroke from session
-            self.updateAIDrawingWithAnimations()
-
+            // Display link will process the buffer on next frame
             completion()
         }
     }
@@ -470,11 +473,24 @@ class DrawingViewModel: ObservableObject {
         let fireTime = Date()
 
         // This fires every frame (60fps or 120fps on ProMotion displays)
+
+        // PERFORMANCE: Process batched animation completions
+        if !completedAnimationsBuffer.isEmpty {
+            for animationID in completedAnimationsBuffer {
+                animatingStrokes.removeValue(forKey: animationID)
+            }
+            completedAnimationsBuffer.removeAll()
+            print("🎬 Processed \(completedAnimationsBuffer.count) completed animations in batch")
+        }
+
         // Check if there are any active animations
         let hasActiveAnimations = !animatingStrokes.values.allSatisfy { $0.isComplete }
 
         if hasActiveAnimations {
-            // THROTTLE: Only update at most 30fps to avoid overwhelming SwiftUI
+            // PERFORMANCE: Skip if canvas is not visible (zero size)
+            guard canvasBounds.width > 0 && canvasBounds.height > 0 else { return }
+
+            // THROTTLE: Only update at most 10fps to avoid overwhelming SwiftUI
             let timeSinceLastUpdate = fireTime.timeIntervalSince(lastAnimationUpdateTime)
             if timeSinceLastUpdate >= minUpdateInterval {
                 let updateStartTime = Date()
@@ -499,37 +515,15 @@ class DrawingViewModel: ObservableObject {
 
     private func updateAIDrawingWithAnimations() {
         let updateStart = Date()
-        var drawing = PKDrawing()
 
-        // Debug: Count what we're about to add
-        let totalAIStrokesInSession = currentSession.strokes.filter { $0.source == .ai }.count
-        var skippedCount = 0
-        var addedFromSessionCount = 0
-
-        // Add all completed AI strokes from session (skip ones currently animating to avoid duplicates)
-        for stroke in currentSession.strokes where stroke.source == .ai {
-            // Skip if this stroke is currently being animated
-            if currentlyAnimatingStrokeIDs.contains(stroke.id) {
-                skippedCount += 1
-                continue
-            }
-
-            // Try to get PKStroke - first from the stroke, then from cache if needed
-            var pkStroke: PKStroke? = stroke.toPKStroke()
-
-            // If toPKStroke() failed (nil), try to restore from cache
-            if pkStroke == nil, let cachedStroke = aiStrokeCache[stroke.id] {
-                pkStroke = cachedStroke
-                // Restore it to the stroke model too
-                var mutableStroke = stroke
-                mutableStroke.pkStroke = cachedStroke
-            }
-
-            if let pkStroke = pkStroke {
-                drawing.strokes.append(pkStroke)
-                addedFromSessionCount += 1
-            }
+        // PERFORMANCE OPTIMIZATION: Only rebuild base drawing when AI stroke count changes
+        let currentAIStrokeCount = currentSession.strokes.filter { $0.source == .ai }.count
+        if cachedAIStrokeCount != currentAIStrokeCount {
+            rebuildCachedCompletedDrawing()
         }
+
+        // Start with cached completed strokes
+        var drawing = cachedCompletedDrawing
 
         // Add all currently animating strokes (partial or complete)
         var addedAnimatingCount = 0
@@ -562,10 +556,44 @@ class DrawingViewModel: ObservableObject {
 
         // Only log if update is slow or we skipped strokes
         if updateDuration > 0.016 || skippedLowProgress > 0 {
-            print("📊 updateAIDrawing: \(drawing.strokes.count) strokes (\(addedFromSessionCount) session + \(addedAnimatingCount) animating, skipped \(skippedLowProgress) low-progress) - \(String(format: "%.1f", updateDuration * 1000))ms")
+            print("📊 updateAIDrawing: \(drawing.strokes.count) strokes (cached + \(addedAnimatingCount) animating, skipped \(skippedLowProgress) low-progress) - \(String(format: "%.1f", updateDuration * 1000))ms")
         }
 
         self.aiPKDrawing = drawing
+    }
+
+    /// PERFORMANCE OPTIMIZATION: Rebuild cached drawing from completed AI strokes
+    /// This is called only when the session stroke count changes, not every frame
+    private func rebuildCachedCompletedDrawing() {
+        var drawing = PKDrawing()
+
+        // Add all completed AI strokes from session (skip ones currently animating to avoid duplicates)
+        for stroke in currentSession.strokes where stroke.source == .ai {
+            // Skip if this stroke is currently being animated
+            if currentlyAnimatingStrokeIDs.contains(stroke.id) {
+                continue
+            }
+
+            // Try to get PKStroke - first from the stroke, then from cache if needed
+            var pkStroke: PKStroke? = stroke.toPKStroke()
+
+            // If toPKStroke() failed (nil), try to restore from cache
+            if pkStroke == nil, let cachedStroke = aiStrokeCache[stroke.id] {
+                pkStroke = cachedStroke
+                // Restore it to the stroke model too
+                var mutableStroke = stroke
+                mutableStroke.pkStroke = cachedStroke
+            }
+
+            if let pkStroke = pkStroke {
+                drawing.strokes.append(pkStroke)
+            }
+        }
+
+        cachedCompletedDrawing = drawing
+        cachedAIStrokeCount = currentSession.strokes.filter { $0.source == .ai }.count
+
+        print("📊 Rebuilt cached drawing: \(drawing.strokes.count) completed AI strokes")
     }
 
     private func createPartialStroke(from fullStroke: PKStroke, progress: CGFloat) -> PKStroke? {
