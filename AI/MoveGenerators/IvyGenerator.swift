@@ -65,6 +65,7 @@ class IvyGenerator {
             return generateGeometricIvy(
                 userStroke: userStroke,
                 startPoint: startPoint,
+                allStrokes: allStrokes,
                 configuration: configuration
             )
         }
@@ -246,6 +247,7 @@ class IvyGenerator {
     private func generateGeometricIvy(
         userStroke: Stroke,
         startPoint: CGPoint,
+        allStrokes: [Stroke],
         configuration: AIConfiguration
     ) -> AIMove? {
         // Choose geometric pattern randomly
@@ -263,12 +265,15 @@ class IvyGenerator {
         let totalSegments = GeneratorParameters.Ivy.totalSegments
         let radius: CGFloat = 40.0 + CGFloat.random(in: -10...20)  // 30-60px radius
         let basePointSize = GeneratorParameters.Ivy.pointSize
+        let strokeConnectionThreshold: CGFloat = 15.0  // Stop shape if within 15px of another stroke
+        let continueShapeProbability: Double = 0.4  // 40% chance to complete shape even when connecting
+        var hasConnected = false  // Track if we've made a connection
 
         print("🌿 Generating geometric pattern: \(chosenPattern)")
 
         switch chosenPattern {
         case .square:
-            // Square pattern
+            // Square pattern - stops early if it reaches another stroke
             let sideLength = radius * 2.0
             let halfSide = sideLength / 2.0
             let corners = [
@@ -288,9 +293,39 @@ class IvyGenerator {
                 let end = corners[edgeIndex + 1]
                 let x = start.x + (end.x - start.x) * edgeT
                 let y = start.y + (end.y - start.y) * edgeT
+                let location = CGPoint(x: x, y: y)
+
+                // Check if we're close to another stroke - if so, decide whether to stop or connect
+                if i > 3 && !hasConnected {
+                    if let connectionPoint = findNearbyStrokeConnection(location, strokes: allStrokes, currentStroke: userStroke, threshold: strokeConnectionThreshold) {
+                        let shouldContinue = Double.random(in: 0...1) < continueShapeProbability
+
+                        if shouldContinue {
+                            // Create connection point then continue shape
+                            print("🌿 Square: connecting to stroke at segment \(i)/\(totalSegments), will continue")
+
+                            // Add connection point (briefly touch the nearby stroke)
+                            let connectionPt = PKStrokePoint(
+                                location: connectionPoint,
+                                timeOffset: TimeInterval(i) * 0.015 + 0.005,
+                                size: CGSize(width: basePointSize, height: basePointSize),
+                                opacity: GeneratorParameters.Ivy.opacity,
+                                force: GeneratorParameters.Ivy.force,
+                                azimuth: 0,
+                                altitude: .pi / 4
+                            )
+                            controlPoints.append(connectionPt)
+                            hasConnected = true
+                        } else {
+                            // Stop shape here (partial shape)
+                            print("🌿 Partial square: connected to stroke at segment \(i)/\(totalSegments)")
+                            break
+                        }
+                    }
+                }
 
                 let point = PKStrokePoint(
-                    location: CGPoint(x: x, y: y),
+                    location: location,
                     timeOffset: TimeInterval(i) * 0.015,
                     size: CGSize(width: basePointSize, height: basePointSize),
                     opacity: GeneratorParameters.Ivy.opacity,
@@ -302,14 +337,43 @@ class IvyGenerator {
             }
 
         case .circle:
-            // Perfect circle
+            // Perfect circle - stops early if it reaches another stroke
             for i in 0...totalSegments {
                 let angle = (CGFloat(i) / CGFloat(totalSegments)) * .pi * 2.0
                 let x = startPoint.x + cos(angle) * radius
                 let y = startPoint.y + sin(angle) * radius
+                let location = CGPoint(x: x, y: y)
+
+                // Check if we're close to another stroke - if so, decide whether to stop or connect
+                if i > 3 && !hasConnected {
+                    if let connectionPoint = findNearbyStrokeConnection(location, strokes: allStrokes, currentStroke: userStroke, threshold: strokeConnectionThreshold) {
+                        let shouldContinue = Double.random(in: 0...1) < continueShapeProbability
+
+                        if shouldContinue {
+                            // Create connection point then continue shape
+                            print("🌿 Circle: connecting to stroke at segment \(i)/\(totalSegments), will continue")
+
+                            let connectionPt = PKStrokePoint(
+                                location: connectionPoint,
+                                timeOffset: TimeInterval(i) * 0.015 + 0.005,
+                                size: CGSize(width: basePointSize, height: basePointSize),
+                                opacity: GeneratorParameters.Ivy.opacity,
+                                force: GeneratorParameters.Ivy.force,
+                                azimuth: 0,
+                                altitude: .pi / 4
+                            )
+                            controlPoints.append(connectionPt)
+                            hasConnected = true
+                        } else {
+                            // Stop shape here (partial circle)
+                            print("🌿 Partial circle: connected to stroke at segment \(i)/\(totalSegments)")
+                            break
+                        }
+                    }
+                }
 
                 let point = PKStrokePoint(
-                    location: CGPoint(x: x, y: y),
+                    location: location,
                     timeOffset: TimeInterval(i) * 0.015,
                     size: CGSize(width: basePointSize, height: basePointSize),
                     opacity: GeneratorParameters.Ivy.opacity,
@@ -321,7 +385,7 @@ class IvyGenerator {
             }
 
         case .triangle:
-            // Equilateral triangle (3 sides)
+            // Equilateral triangle (3 sides) - stops early if it reaches another stroke
             let height = radius * sqrt(3.0)
             let corners = [
                 CGPoint(x: startPoint.x, y: startPoint.y - radius),                    // Top vertex
@@ -339,9 +403,38 @@ class IvyGenerator {
                 let end = corners[edgeIndex + 1]
                 let x = start.x + (end.x - start.x) * edgeT
                 let y = start.y + (end.y - start.y) * edgeT
+                let location = CGPoint(x: x, y: y)
+
+                // Check if we're close to another stroke - if so, decide whether to stop or connect
+                if i > 3 && !hasConnected {
+                    if let connectionPoint = findNearbyStrokeConnection(location, strokes: allStrokes, currentStroke: userStroke, threshold: strokeConnectionThreshold) {
+                        let shouldContinue = Double.random(in: 0...1) < continueShapeProbability
+
+                        if shouldContinue {
+                            // Create connection point then continue shape
+                            print("🌿 Triangle: connecting to stroke at segment \(i)/\(totalSegments), will continue")
+
+                            let connectionPt = PKStrokePoint(
+                                location: connectionPoint,
+                                timeOffset: TimeInterval(i) * 0.015 + 0.005,
+                                size: CGSize(width: basePointSize, height: basePointSize),
+                                opacity: GeneratorParameters.Ivy.opacity,
+                                force: GeneratorParameters.Ivy.force,
+                                azimuth: 0,
+                                altitude: .pi / 4
+                            )
+                            controlPoints.append(connectionPt)
+                            hasConnected = true
+                        } else {
+                            // Stop shape here (partial triangle)
+                            print("🌿 Partial triangle: connected to stroke at segment \(i)/\(totalSegments)")
+                            break
+                        }
+                    }
+                }
 
                 let point = PKStrokePoint(
-                    location: CGPoint(x: x, y: y),
+                    location: location,
                     timeOffset: TimeInterval(i) * 0.015,
                     size: CGSize(width: basePointSize, height: basePointSize),
                     opacity: GeneratorParameters.Ivy.opacity,
@@ -353,7 +446,7 @@ class IvyGenerator {
             }
 
         case .halfCircle:
-            // Half circle (semicircle)
+            // Half circle (semicircle) - stops early if it reaches another stroke
             let randomDirection = Bool.random()  // true = top half, false = bottom half
             let startAngle: CGFloat = randomDirection ? 0.0 : .pi
 
@@ -362,9 +455,38 @@ class IvyGenerator {
                 let angle = startAngle + t * .pi  // Draw half circle (π radians)
                 let x = startPoint.x + cos(angle) * radius
                 let y = startPoint.y + sin(angle) * radius
+                let location = CGPoint(x: x, y: y)
+
+                // Check if we're close to another stroke - if so, decide whether to stop or connect
+                if i > 3 && !hasConnected {
+                    if let connectionPoint = findNearbyStrokeConnection(location, strokes: allStrokes, currentStroke: userStroke, threshold: strokeConnectionThreshold) {
+                        let shouldContinue = Double.random(in: 0...1) < continueShapeProbability
+
+                        if shouldContinue {
+                            // Create connection point then continue shape
+                            print("🌿 Half-circle: connecting to stroke at segment \(i)/\(totalSegments), will continue")
+
+                            let connectionPt = PKStrokePoint(
+                                location: connectionPoint,
+                                timeOffset: TimeInterval(i) * 0.015 + 0.005,
+                                size: CGSize(width: basePointSize, height: basePointSize),
+                                opacity: GeneratorParameters.Ivy.opacity,
+                                force: GeneratorParameters.Ivy.force,
+                                azimuth: 0,
+                                altitude: .pi / 4
+                            )
+                            controlPoints.append(connectionPt)
+                            hasConnected = true
+                        } else {
+                            // Stop shape here (partial arc)
+                            print("🌿 Partial half-circle: connected to stroke at segment \(i)/\(totalSegments)")
+                            break
+                        }
+                    }
+                }
 
                 let point = PKStrokePoint(
-                    location: CGPoint(x: x, y: y),
+                    location: location,
                     timeOffset: TimeInterval(i) * 0.015,
                     size: CGSize(width: basePointSize, height: basePointSize),
                     opacity: GeneratorParameters.Ivy.opacity,
@@ -409,18 +531,25 @@ class IvyGenerator {
     // MARK: - Helper Methods
 
     /// Interpolate point along stroke at parameter t (0.0 to 1.0)
+    /// Uses actual path points, not linear interpolation
     private func interpolatePoint(on stroke: Stroke, at t: CGFloat) -> CGPoint {
-        let clampedT = max(0.0, min(1.0, t))
-        let x = stroke.startPoint.x + (stroke.endPoint.x - stroke.startPoint.x) * clampedT
-        let y = stroke.startPoint.y + (stroke.endPoint.y - stroke.startPoint.y) * clampedT
-        return CGPoint(x: x, y: y)
+        // Use Stroke's built-in method that samples actual path
+        return stroke.pointAt(fraction: t)
     }
 
     /// Calculate tangent direction at point on stroke
+    /// Uses local tangent from actual path points
     private func calculateTangent(on stroke: Stroke, at t: CGFloat) -> CGPoint {
-        // Simple tangent = direction vector normalized
-        let dx = stroke.endPoint.x - stroke.startPoint.x
-        let dy = stroke.endPoint.y - stroke.startPoint.y
+        // Sample nearby points to get local tangent
+        let delta: CGFloat = 0.05  // Small offset for finite difference
+        let tBefore = max(0.0, t - delta)
+        let tAfter = min(1.0, t + delta)
+
+        let pointBefore = stroke.pointAt(fraction: tBefore)
+        let pointAfter = stroke.pointAt(fraction: tAfter)
+
+        let dx = pointAfter.x - pointBefore.x
+        let dy = pointAfter.y - pointBefore.y
         let lengthSquared = dx * dx + dy * dy
 
         // Safety: Check for valid value before sqrt
@@ -637,6 +766,58 @@ class IvyGenerator {
         }
 
         return nil  // Too much variation, no clear pattern
+    }
+
+    /// Check if a point is close to any stroke (used for stopping geometric shapes early)
+    private func isCloseToAnyStroke(
+        _ point: CGPoint,
+        strokes: [Stroke],
+        currentStroke: Stroke,
+        threshold: CGFloat
+    ) -> Bool {
+        return findNearbyStrokeConnection(point, strokes: strokes, currentStroke: currentStroke, threshold: threshold) != nil
+    }
+
+    /// Find nearby stroke connection point - returns the closest point on a nearby stroke if within threshold
+    private func findNearbyStrokeConnection(
+        _ point: CGPoint,
+        strokes: [Stroke],
+        currentStroke: Stroke,
+        threshold: CGFloat
+    ) -> CGPoint? {
+        var closestPoint: CGPoint?
+        var closestDistance: CGFloat = threshold
+
+        for stroke in strokes {
+            // Skip the current stroke (the one user just drew)
+            if stroke.id == currentStroke.id {
+                continue
+            }
+
+            // Quick bounding box check first (optimization)
+            let expandedBounds = stroke.boundingBox.insetBy(dx: -threshold, dy: -threshold)
+            guard expandedBounds.contains(point) else {
+                continue
+            }
+
+            // Calculate actual distance to stroke
+            let (strokePoint, _) = closestPointOnLineSegment(
+                point: point,
+                lineStart: stroke.startPoint,
+                lineEnd: stroke.endPoint
+            )
+
+            let dx = point.x - strokePoint.x
+            let dy = point.y - strokePoint.y
+            let distance = sqrt(dx * dx + dy * dy)
+
+            if distance < closestDistance {
+                closestDistance = distance
+                closestPoint = strokePoint
+            }
+        }
+
+        return closestPoint
     }
 }
 

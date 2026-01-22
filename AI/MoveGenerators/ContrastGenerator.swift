@@ -41,12 +41,9 @@ class ContrastGenerator {
         let lengthFactor: CGFloat = state.alignmentMode == .anti ? 0.4 : 0.6
         let length = CGFloat(userStroke.length) * lengthFactor
 
-        // Start from random point along the stroke
+        // Start from random point along the stroke using actual path
         let t = CGFloat.random(in: 0.3...0.7)
-        let start = CGPoint(
-            x: userStroke.startPoint.x + (userStroke.endPoint.x - userStroke.startPoint.x) * t,
-            y: userStroke.startPoint.y + (userStroke.endPoint.y - userStroke.startPoint.y) * t
-        )
+        let start = userStroke.pointAt(fraction: t)
 
         var controlPoints: [PKStrokePoint] = []
         let segments = 10

@@ -37,10 +37,14 @@ struct Stroke: Identifiable, Codable {
     let id: UUID
     let source: StrokeSource
     let timestamp: Date
-    let pkStrokeData: Data  // Encoded PKStroke for reconstruction
+    let pkStrokeData: Data  // Encoded PKStroke for reconstruction (user strokes only)
     let moveType: AIMoveType?  // Only for AI strokes
     var isVisible: Bool
     var reinforcement: Reinforcement?
+
+    // TRANSIENT: Keep PKStroke in memory for AI strokes (can't be archived)
+    // This field is NOT serialized - it's recreated from pkStrokeData for user strokes
+    var pkStroke: PKStroke?
 
     // Cached geometry for analysis (calculated once at creation)
     let boundingBox: CGRect
@@ -61,16 +65,24 @@ struct Stroke: Identifiable, Codable {
         self.isVisible = true
         self.reinforcement = nil
 
-        // Encode PKStroke for storage
-        if let data = try? NSKeyedArchiver.archivedData(
-            withRootObject: pkStroke,
-            requiringSecureCoding: false
-        ) {
-            self.pkStrokeData = data
-            print("💾 Stroke \(id): Archived PKStroke successfully (\(data.count) bytes)")
+        // AI strokes: Keep PKStroke in memory (can't be serialized)
+        // User strokes: Serialize to pkStrokeData for persistence
+        if source == .ai {
+            self.pkStroke = pkStroke
+            self.pkStrokeData = Data()  // Empty - won't be used
+            print("💾 Stroke \(id): AI stroke - keeping PKStroke in memory")
         } else {
-            self.pkStrokeData = Data()
-            print("⚠️ Stroke \(id): FAILED to archive PKStroke - pkStrokeData is empty!")
+            self.pkStroke = nil  // Will be recreated from pkStrokeData when needed
+            if let data = try? NSKeyedArchiver.archivedData(
+                withRootObject: pkStroke,
+                requiringSecureCoding: false
+            ) {
+                self.pkStrokeData = data
+                print("💾 Stroke \(id): User stroke archived successfully (\(data.count) bytes)")
+            } else {
+                self.pkStrokeData = Data()
+                print("⚠️ Stroke \(id): User stroke archiving FAILED - pkStrokeData is empty!")
+            }
         }
 
         // Calculate and cache geometry
@@ -96,19 +108,71 @@ struct Stroke: Identifiable, Codable {
         self.directionChanges = Self.calculateDirectionChanges(pkStroke.path)
     }
 
-    /// Reconstruct PKStroke from encoded data
+    /// Reconstruct PKStroke from stored reference or encoded data
     func toPKStroke() -> PKStroke? {
+        // AI strokes: Return stored PKStroke reference
+        if let storedStroke = pkStroke {
+            // Reduced logging - only log once per session would be ideal, but this works
+            // print("✅ Stroke \(id): Returning stored PKStroke reference (AI stroke)")
+            return storedStroke
+        }
+
+        // User strokes: Deserialize from pkStrokeData
         guard !pkStrokeData.isEmpty else {
-            print("⚠️ Stroke \(id): toPKStroke() failed - pkStrokeData is empty")
+            // Don't log for AI strokes with empty data - these are old strokes from before the fix
+            if source == .user {
+                print("⚠️ User stroke \(id): toPKStroke() failed - pkStrokeData is empty")
+            }
+            // Old AI strokes fail silently - they can't be rendered
             return nil
         }
 
         if let pkStroke = try? NSKeyedUnarchiver.unarchiveTopLevelObjectWithData(pkStrokeData) as? PKStroke {
-            print("✅ Stroke \(id): Successfully unarchived PKStroke")
+            // print("✅ Stroke \(id): Successfully unarchived PKStroke from data")
             return pkStroke
         } else {
             print("⚠️ Stroke \(id): Unarchiving failed - data exists (\(pkStrokeData.count) bytes) but couldn't decode")
             return nil
+        }
+    }
+
+    // MARK: - Codable Implementation
+
+    enum CodingKeys: String, CodingKey {
+        case id, source, timestamp, pkStrokeData, moveType, isVisible, reinforcement
+        case boundingBox, length, avgVelocity, avgPressure, curvature
+        case startPoint, endPoint, directionChanges
+        // NOTE: pkStroke is NOT included - it's transient
+    }
+
+    // Custom decoder to handle transient pkStroke field
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        id = try container.decode(UUID.self, forKey: .id)
+        source = try container.decode(StrokeSource.self, forKey: .source)
+        timestamp = try container.decode(Date.self, forKey: .timestamp)
+        pkStrokeData = try container.decode(Data.self, forKey: .pkStrokeData)
+        moveType = try container.decodeIfPresent(AIMoveType.self, forKey: .moveType)
+        isVisible = try container.decode(Bool.self, forKey: .isVisible)
+        reinforcement = try container.decodeIfPresent(Reinforcement.self, forKey: .reinforcement)
+
+        boundingBox = try container.decode(CGRect.self, forKey: .boundingBox)
+        length = try container.decode(Double.self, forKey: .length)
+        avgVelocity = try container.decode(Double.self, forKey: .avgVelocity)
+        avgPressure = try container.decode(Double.self, forKey: .avgPressure)
+        curvature = try container.decode(Double.self, forKey: .curvature)
+        startPoint = try container.decode(CGPoint.self, forKey: .startPoint)
+        endPoint = try container.decode(CGPoint.self, forKey: .endPoint)
+        directionChanges = try container.decode(Int.self, forKey: .directionChanges)
+
+        // pkStroke is transient - not decoded, will be nil
+        // For user strokes, it will be recreated on-demand via toPKStroke()
+        // For AI strokes loaded from disk, they won't render (acceptable since sessions are temporary)
+        pkStroke = nil
+
+        if source == .ai {
+            print("⚠️ AI Stroke \(id): Loaded from disk - pkStroke is nil (can't render)")
         }
     }
 
@@ -213,5 +277,106 @@ extension CGRect {
 
     var area: CGFloat {
         return width * height
+    }
+}
+
+// MARK: - Stroke Path Sampling
+
+extension Stroke {
+    /// Sample N points along the actual stroke path (not just start/end)
+    /// Returns actual points from the PKStroke path, evenly distributed
+    func samplePathPoints(count: Int) -> [CGPoint] {
+        guard let pkStroke = toPKStroke() else {
+            // Fallback: interpolate between start and end
+            return (0..<count).map { i in
+                let t = CGFloat(i) / CGFloat(max(1, count - 1))
+                return CGPoint(
+                    x: startPoint.x + (endPoint.x - startPoint.x) * t,
+                    y: startPoint.y + (endPoint.y - startPoint.y) * t
+                )
+            }
+        }
+
+        let path = pkStroke.path
+        let pointCount = path.count
+
+        guard pointCount > 1 else {
+            return [startPoint]
+        }
+
+        // Sample evenly distributed points from the actual path
+        var sampledPoints: [CGPoint] = []
+        for i in 0..<count {
+            let t = Double(i) / Double(max(1, count - 1))
+            let index = Int(t * Double(pointCount - 1))
+            sampledPoints.append(path[index].location)
+        }
+
+        return sampledPoints
+    }
+
+    /// Get a random segment of the stroke path (useful for partial reactions)
+    /// Returns (startIndex, endIndex, points)
+    func randomPathSegment(minLength: CGFloat = 20.0) -> (start: Int, end: Int, points: [CGPoint])? {
+        guard let pkStroke = toPKStroke() else { return nil }
+
+        let path = pkStroke.path
+        let pointCount = path.count
+
+        guard pointCount > 5 else {
+            // Stroke too short, return full path
+            let points = (0..<pointCount).map { path[$0].location }
+            return (0, pointCount - 1, points)
+        }
+
+        // Pick a random starting point (not too close to the end)
+        let maxStart = pointCount - 5
+        let startIndex = Int.random(in: 0..<maxStart)
+
+        // Find end point that gives us at least minLength distance
+        var endIndex = startIndex + 1
+        var totalLength: CGFloat = 0
+
+        for i in (startIndex + 1)..<pointCount {
+            let prevPoint = path[i - 1].location
+            let currPoint = path[i].location
+            totalLength += prevPoint.distance(to: currPoint)
+
+            if totalLength >= minLength {
+                endIndex = i
+                break
+            }
+        }
+
+        // If we didn't find a segment long enough, use the rest of the stroke
+        if totalLength < minLength {
+            endIndex = pointCount - 1
+        }
+
+        let points = (startIndex...endIndex).map { path[$0].location }
+        return (startIndex, endIndex, points)
+    }
+
+    /// Get the point at a specific fraction along the path (0.0 = start, 1.0 = end)
+    func pointAt(fraction: CGFloat) -> CGPoint {
+        guard let pkStroke = toPKStroke() else {
+            // Fallback: interpolate between start and end
+            let t = max(0, min(1, fraction))
+            return CGPoint(
+                x: startPoint.x + (endPoint.x - startPoint.x) * t,
+                y: startPoint.y + (endPoint.y - startPoint.y) * t
+            )
+        }
+
+        let path = pkStroke.path
+        let pointCount = path.count
+
+        guard pointCount > 1 else {
+            return startPoint
+        }
+
+        let t = max(0, min(1, fraction))
+        let index = Int(t * CGFloat(pointCount - 1))
+        return path[index].location
     }
 }

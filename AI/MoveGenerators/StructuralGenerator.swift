@@ -104,32 +104,44 @@ class StructuralGenerator {
         let pressureFactor = max(0.3, min(stroke.avgPressure * 2.5, 4.0)) // Wider range
         let offset = baseOffset / CGFloat(pressureFactor)
 
-        // Calculate perpendicular direction
-        let dx = stroke.endPoint.x - stroke.startPoint.x
-        let dy = stroke.endPoint.y - stroke.startPoint.y
-        let length = hypot(dx, dy)
-
-        guard length > 0 else { return nil }
-
-        let perpX = -dy / length
-        let perpY = dx / length
-
         var controlPoints: [PKStrokePoint] = []
         let segments = 8
 
-        for i in 0...segments {
-            let t = CGFloat(i) / CGFloat(segments)
+        // Sample actual points from the stroke path instead of interpolating
+        let pathPoints = stroke.samplePathPoints(count: segments + 1)
 
-            // Base position along stroke
-            let baseX = stroke.startPoint.x + dx * t
-            let baseY = stroke.startPoint.y + dy * t
+        // CRITICAL: Use actual returned point count, not requested count
+        let actualSegments = pathPoints.count - 1
+        guard actualSegments > 0 else {
+            print("🏗️ StructuralGenerator: ERROR - not enough path points")
+            return nil
+        }
 
-            // Add slight wobble for organic feel (less than curve)
+        for i in 0...actualSegments {
+            let basePoint = pathPoints[i]
+
+            // Calculate local perpendicular direction
+            // Look ahead/behind to get tangent direction at this point
+            let prevPoint = i > 0 ? pathPoints[i - 1] : pathPoints[i]
+            let nextPoint = i < actualSegments ? pathPoints[i + 1] : pathPoints[i]
+
+            let dx = nextPoint.x - prevPoint.x
+            let dy = nextPoint.y - prevPoint.y
+            let localLength = hypot(dx, dy)
+
+            if localLength < 0.1 { continue }  // Skip degenerate points
+
+            // Perpendicular direction
+            let perpX = -dy / localLength
+            let perpY = dx / localLength
+
+            // Add slight wobble for organic feel
+            let t = CGFloat(i) / CGFloat(actualSegments)
             let wobble = sin(t * .pi * 3) * 4.0
             let currentOffset = offset + wobble
 
-            let x = baseX + perpX * currentOffset
-            let y = baseY + perpY * currentOffset
+            let x = basePoint.x + perpX * currentOffset
+            let y = basePoint.y + perpY * currentOffset
 
             // PRESSURE RESPONSE: Point size scales with user pressure
             // Structural strokes are bold, so higher minimum
@@ -148,6 +160,8 @@ class StructuralGenerator {
             controlPoints.append(point)
         }
 
+        guard !controlPoints.isEmpty else { return nil }
+
         let path = PKStrokePath(controlPoints: controlPoints, creationDate: Date())
 
         // PRESSURE RESPONSE: Stroke width scales with pressure
@@ -157,7 +171,7 @@ class StructuralGenerator {
         let baseColor = GeneratorColors.structuralColor
         let variedColor = configuration.applyColorVariation(to: baseColor)
 
-        print("🏗️ StructuralGenerator (edge): pressure=\(String(format: "%.2f", stroke.avgPressure)), length=\(stroke.length.isFinite ? Int(stroke.length) : -1), offset=\(offset.isFinite ? Int(offset) : -1)")
+        print("🏗️ StructuralGenerator (edge): pressure=\(String(format: "%.2f", stroke.avgPressure)), length=\(stroke.length.isFinite ? Int(stroke.length) : -1), offset=\(offset.isFinite ? Int(offset) : -1), points=\(pathPoints.count)")
 
         return AIMove(
             moveType: .structural,

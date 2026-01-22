@@ -32,9 +32,9 @@ struct AIConfiguration: Codable {
     var animationSpeedMultiplier: Double = 1.0  // 1.0 = normal speed
 
     // Continuous drawing controls
-    var continuousDrawDuration: Double = 10.0   // How long AI continues drawing after user stops (seconds)
-    var continuousDrawInterval: Double = 0.8    // Time between continuous AI strokes (seconds)
-    var continuousDrawMaxStrokes: Int = 50      // Maximum number of strokes in continuous mode (safety limit)
+    var continuousDrawDuration: Double = 5.0    // How long AI continues drawing after user stops (seconds) - reduced from 10
+    var continuousDrawInterval: Double = 1.2    // Time between continuous AI strokes (seconds) - increased from 0.8
+    var continuousDrawMaxStrokes: Int = 20      // Maximum number of strokes in continuous mode (safety limit) - reduced from 50
 
     // Color variation controls (applied to all AI generators)
     var colorHueVariation: Double = 0.0         // Hue shift variation in degrees (0-360, 0 = no variation)

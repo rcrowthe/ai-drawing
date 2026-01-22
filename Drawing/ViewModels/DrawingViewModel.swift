@@ -14,8 +14,9 @@ class DrawingViewModel: ObservableObject {
     @Published var currentSession: DrawingSession
     @Published var userPKDrawing: PKDrawing  // NEW: Only user strokes
     @Published var aiPKDrawing: PKDrawing    // NEW: Only AI strokes
-    @Published var canvasZoomScale: CGFloat = 1.0  // Synchronized zoom between layers
+    @Published var canvasZoomScale: CGFloat = 0.5  // Start at minimum zoom to see full canvas
     @Published var canvasContentOffset: CGPoint = .zero  // Synchronized pan between layers
+    @Published var canvasBounds: CGSize = CGSize(width: 800, height: 1200)  // Canvas viewport size (updated from view)
     @Published var selectedTool: PKTool = PKInkingTool(.pen, color: GeneratorColors.userPenColor, width: 5)
     @Published var canUndo: Bool = false
     @Published var canRedo: Bool = false
@@ -54,6 +55,10 @@ class DrawingViewModel: ObservableObject {
     private let historyManager = HistoryManager()
     private let persistenceService = PersistenceService.shared
     private var aiDecisionEngine: AIDecisionEngine
+
+    // AI stroke cache: Keeps PKStroke references alive across session save/load
+    // Maps stroke ID → PKStroke for AI strokes only
+    private var aiStrokeCache: [UUID: PKStroke] = [:]
 
     // Learning system (Phase 6)
     private let behaviorTracker = BehaviorTracker()
@@ -272,10 +277,14 @@ class DrawingViewModel: ObservableObject {
             // SKIP shouldRespond check during continuous drawing - we're in a 3-second window
             // The timer already handles the time limit
 
+            // Calculate visible viewport rect
+            let visibleRect = self.calculateVisibleRect()
+
             // Generate AI move based on CURRENT canvas state (includes all strokes)
             guard let aiMove = self.aiDecisionEngine.generateResponse(
                 userStroke: mostRecentStroke,  // Use most recent stroke (AI learns from its own marks too!)
-                session: self.currentSession    // Session has ALL strokes
+                session: self.currentSession,   // Session has ALL strokes
+                visibleRect: visibleRect        // Current viewport
             ) else {
                 print("🔁 ERROR: generateResponse returned nil")
                 return
@@ -309,10 +318,15 @@ class DrawingViewModel: ObservableObject {
             }
 
             print("🤖 AI IS responding - generating move")
+
+            // Calculate visible viewport rect
+            let visibleRect = self.calculateVisibleRect()
+
             // Generate AI move
             guard let aiMove = self.aiDecisionEngine.generateResponse(
                 userStroke: userStroke,
-                session: self.currentSession
+                session: self.currentSession,
+                visibleRect: visibleRect
             ) else {
                 print("🤖 ERROR: generateResponse returned nil")
                 return
@@ -341,6 +355,10 @@ class DrawingViewModel: ObservableObject {
         // Create stroke model BEFORE animation
         let stroke = Stroke(pkStroke: pkStroke, source: .ai, moveType: move.moveType)
 
+        // Cache the PKStroke reference so it survives session save/load
+        aiStrokeCache[stroke.id] = pkStroke
+        print("💾 Cached AI stroke \(stroke.id) in memory")
+
         // Add to session ONLY for AI logic (so next AI move can react to this stroke)
         // But DON'T render it from session yet - let animation handle rendering
         currentSession.addStroke(stroke)
@@ -368,24 +386,26 @@ class DrawingViewModel: ObservableObject {
 
     // Track strokes currently being animated - allows multiple concurrent animations
     private var animatingStrokes: [UUID: AnimatingStroke] = [:]
-    // Track which stroke IDs are currently animating (to avoid rendering duplicates from session)
     private var currentlyAnimatingStrokeIDs: Set<UUID> = []
-    private var animationTimer: Timer?
+    private var displayLink: CADisplayLink?  // For 60fps vsync animation
+    private var lastAnimationUpdateTime: Date = Date()  // Throttle animation updates
+    private let minUpdateInterval: TimeInterval = 1.0 / 15.0  // Max 15fps for animation updates (reduce overhead)
 
     private struct AnimatingStroke {
         let strokeID: UUID  // ID of the Stroke model
         let fullStroke: PKStroke
         let speed: Double
         let startTime: Date
-        var currentStep: Int = 0
-        let totalSteps: Int = 10
+        let duration: TimeInterval  // Total animation duration
 
         var isComplete: Bool {
-            currentStep >= totalSteps
+            Date().timeIntervalSince(startTime) >= duration
         }
 
         var progress: CGFloat {
-            CGFloat(currentStep) / CGFloat(totalSteps)
+            let elapsed = Date().timeIntervalSince(startTime)
+            let ratio = CGFloat(elapsed / duration)
+            return min(1.0, max(0.0, ratio))  // Clamp to [0, 1]
         }
     }
 
@@ -395,23 +415,25 @@ class DrawingViewModel: ObservableObject {
         // Track that this stroke is animating (to avoid rendering from session)
         currentlyAnimatingStrokeIDs.insert(strokeModel.id)
 
-        // Calculate animation duration
+        // Calculate animation duration based on speed
         let finalSpeed = speed * aiConfiguration.animationSpeedMultiplier
-        let baseDuration: TimeInterval = 0.1
+        let baseDuration: TimeInterval = 1.0  // Base duration for 1x speed
         let animationDuration = baseDuration / finalSpeed
-        let frameInterval = animationDuration / 10.0  // 10 steps
 
-        // Add to animating strokes
+        print("🎬 Starting animation - duration: \(String(format: "%.2f", animationDuration))s, speed: \(String(format: "%.2f", finalSpeed))x")
+
+        // Add to animating strokes (time-based, not step-based)
         animatingStrokes[animationID] = AnimatingStroke(
             strokeID: strokeModel.id,
             fullStroke: pkStroke,
             speed: speed,
-            startTime: Date()
+            startTime: Date(),
+            duration: animationDuration
         )
 
-        // Start animation timer if not already running
-        if animationTimer == nil {
-            startAnimationTimer(frameInterval: frameInterval)
+        // Start display link if not already running (vsync @ 60fps or higher)
+        if displayLink == nil {
+            startDisplayLink()
         }
 
         // Update display immediately to show animation start
@@ -432,51 +454,57 @@ class DrawingViewModel: ObservableObject {
         }
     }
 
-    private func startAnimationTimer(frameInterval: TimeInterval) {
-        animationTimer?.invalidate()
+    private func startDisplayLink() {
+        // Stop any existing display link
+        displayLink?.invalidate()
 
-        animationTimer = Timer.scheduledTimer(withTimeInterval: frameInterval, repeats: true) { [weak self] timer in
-            guard let self = self else {
-                timer.invalidate()
-                return
-            }
+        // Create display link that fires on every screen refresh (60fps+ depending on device)
+        let link = CADisplayLink(target: self, selector: #selector(displayLinkFired))
+        link.add(to: .main, forMode: .common)
+        displayLink = link
 
-            // Update all animating strokes
-            var hasActiveAnimations = false
-            for (id, var stroke) in self.animatingStrokes {
-                stroke.currentStep += 1
-                self.animatingStrokes[id] = stroke
+        print("🎬 Display link started for vsync animation")
+    }
 
-                if !stroke.isComplete {
-                    hasActiveAnimations = true
+    @objc private func displayLinkFired(_ displayLink: CADisplayLink) {
+        let fireTime = Date()
+
+        // This fires every frame (60fps or 120fps on ProMotion displays)
+        // Check if there are any active animations
+        let hasActiveAnimations = !animatingStrokes.values.allSatisfy { $0.isComplete }
+
+        if hasActiveAnimations {
+            // THROTTLE: Only update at most 30fps to avoid overwhelming SwiftUI
+            let timeSinceLastUpdate = fireTime.timeIntervalSince(lastAnimationUpdateTime)
+            if timeSinceLastUpdate >= minUpdateInterval {
+                let updateStartTime = Date()
+
+                // Rebuild AI drawing with all partial strokes
+                updateAIDrawingWithAnimations()
+
+                let updateDuration = Date().timeIntervalSince(updateStartTime)
+                if updateDuration > 0.016 {  // Warn if update takes longer than one frame (16ms)
+                    print("⚠️ Slow animation update: \(String(format: "%.1f", updateDuration * 1000))ms")
                 }
-            }
 
-            // Rebuild AI drawing with all partial strokes
-            self.updateAIDrawingWithAnimations()
-
-            // Stop timer if no active animations
-            if !hasActiveAnimations {
-                timer.invalidate()
-                self.animationTimer = nil
+                lastAnimationUpdateTime = fireTime
             }
+        } else {
+            // Stop display link if no active animations
+            displayLink.invalidate()
+            self.displayLink = nil
+            print("🎬 Display link stopped - no active animations")
         }
-
-        RunLoop.main.add(animationTimer!, forMode: .common)
     }
 
     private func updateAIDrawingWithAnimations() {
+        let updateStart = Date()
         var drawing = PKDrawing()
 
         // Debug: Count what we're about to add
         let totalAIStrokesInSession = currentSession.strokes.filter { $0.source == .ai }.count
         var skippedCount = 0
         var addedFromSessionCount = 0
-
-        print("📊 updateAIDrawing START")
-        print("📊   Total AI strokes in session: \(totalAIStrokesInSession)")
-        print("📊   Currently animating stroke IDs: \(currentlyAnimatingStrokeIDs.count)")
-        print("📊   Active animations: \(animatingStrokes.count)")
 
         // Add all completed AI strokes from session (skip ones currently animating to avoid duplicates)
         for stroke in currentSession.strokes where stroke.source == .ai {
@@ -486,37 +514,56 @@ class DrawingViewModel: ObservableObject {
                 continue
             }
 
-            if let pkStroke = stroke.toPKStroke() {
+            // Try to get PKStroke - first from the stroke, then from cache if needed
+            var pkStroke: PKStroke? = stroke.toPKStroke()
+
+            // If toPKStroke() failed (nil), try to restore from cache
+            if pkStroke == nil, let cachedStroke = aiStrokeCache[stroke.id] {
+                pkStroke = cachedStroke
+                // Restore it to the stroke model too
+                var mutableStroke = stroke
+                mutableStroke.pkStroke = cachedStroke
+            }
+
+            if let pkStroke = pkStroke {
                 drawing.strokes.append(pkStroke)
                 addedFromSessionCount += 1
             }
         }
 
-        print("📊   Skipped (animating): \(skippedCount)")
-        print("📊   Added from session: \(addedFromSessionCount)")
-
         // Add all currently animating strokes (partial or complete)
         var addedAnimatingCount = 0
+        var skippedLowProgress = 0
         for (_, animating) in animatingStrokes {
             if animating.isComplete {
                 // Fully animated - add complete stroke
                 drawing.strokes.append(animating.fullStroke)
                 addedAnimatingCount += 1
             } else {
-                // Still animating - add partial stroke
-                if let partialStroke = createPartialStroke(
-                    from: animating.fullStroke,
-                    progress: animating.progress
-                ) {
-                    drawing.strokes.append(partialStroke)
-                    addedAnimatingCount += 1
+                // Still animating - check if we have enough progress to show
+                // DON'T show strokes until they have at least 10% rendered to avoid the "dot" effect
+                let progress = animating.progress
+                if progress >= 0.1 {
+                    // Add partial stroke
+                    if let partialStroke = createPartialStroke(
+                        from: animating.fullStroke,
+                        progress: progress
+                    ) {
+                        drawing.strokes.append(partialStroke)
+                        addedAnimatingCount += 1
+                    }
+                } else {
+                    skippedLowProgress += 1
                 }
             }
         }
 
-        print("📊   Added from animations: \(addedAnimatingCount)")
-        print("📊   TOTAL strokes in final drawing: \(drawing.strokes.count)")
-        print("📊 updateAIDrawing END\n")
+        let updateDuration = Date().timeIntervalSince(updateStart)
+
+        // Only log if update is slow or we skipped strokes
+        if updateDuration > 0.016 || skippedLowProgress > 0 {
+            print("📊 updateAIDrawing: \(drawing.strokes.count) strokes (\(addedFromSessionCount) session + \(addedAnimatingCount) animating, skipped \(skippedLowProgress) low-progress) - \(String(format: "%.1f", updateDuration * 1000))ms")
+        }
 
         self.aiPKDrawing = drawing
     }
@@ -740,11 +787,36 @@ class DrawingViewModel: ObservableObject {
         }
     }
 
+    /// Calculate the visible viewport rectangle in canvas coordinates
+    private func calculateVisibleRect() -> CGRect? {
+        // Only return a rect if zoomed in (zoom > 0.9) - at zoom 1.0 or below, assume full canvas visible
+        guard canvasZoomScale > 0.9 else {
+            print("📐 Viewport: Full canvas (zoom \(String(format: "%.2f", canvasZoomScale)) ≤ 0.9)")
+            return nil  // Full canvas visible
+        }
+
+        // Calculate visible area in canvas coordinates
+        let visibleWidth = canvasBounds.width / canvasZoomScale
+        let visibleHeight = canvasBounds.height / canvasZoomScale
+
+        let rect = CGRect(
+            x: canvasContentOffset.x,
+            y: canvasContentOffset.y,
+            width: visibleWidth,
+            height: visibleHeight
+        )
+
+        print("📐 Viewport: origin:(\(Int(rect.origin.x)),\(Int(rect.origin.y))) size:\(Int(rect.width))x\(Int(rect.height)) zoom:\(String(format: "%.2f", canvasZoomScale))")
+        print("📐   canvasBounds: \(Int(canvasBounds.width))x\(Int(canvasBounds.height)), contentOffset: (\(Int(canvasContentOffset.x)),\(Int(canvasContentOffset.y)))")
+
+        return rect
+    }
+
     // MARK: - Cleanup
 
     deinit {
         stopContinuousDrawing()
-        animationTimer?.invalidate()
+        displayLink?.invalidate()
         saveSession()
     }
 }

@@ -7,6 +7,7 @@
 
 import SwiftUI
 import PencilKit
+import UIKit
 
 struct DrawingScreen: View {
     @StateObject private var viewModel = DrawingViewModel()
@@ -14,7 +15,6 @@ struct DrawingScreen: View {
     @State private var controlPanelViewModel: ControlPanelViewModel?
 
     var body: some View {
-        print("🖼️ DrawingScreen body rendering")
         return ZStack {
             // DUAL-LAYER CANVAS SYSTEM FOR RELIABLE USER INPUT
             // Layer 1 (Bottom): AI strokes only - non-interactive, synchronized zoom
@@ -33,7 +33,8 @@ struct DrawingScreen: View {
                 tool: viewModel.selectedTool,
                 isTransparent: true,  // Transparent to show AI strokes below
                 zoomScale: $viewModel.canvasZoomScale,
-                contentOffset: $viewModel.canvasContentOffset
+                contentOffset: $viewModel.canvasContentOffset,
+                canvasBounds: $viewModel.canvasBounds
             )
             .edgesIgnoringSafeArea(.all)
 
@@ -174,28 +175,61 @@ struct AICanvasLayer: UIViewRepresentable {
         canvas.drawing = drawing
         canvas.backgroundColor = .white
         canvas.isOpaque = true
-        canvas.isUserInteractionEnabled = false  // No touch interaction
+        canvas.isUserInteractionEnabled = true  // MUST be true to allow programmatic scroll/zoom
         canvas.drawingPolicy = .default
+
+        // CRITICAL: Disable automatic content inset adjustments
+        canvas.contentInsetAdjustmentBehavior = .never
+        canvas.automaticallyAdjustsScrollIndicatorInsets = false
+
+        // Set a large explicit content size matching user canvas
+        let largeContentSize = CGSize(width: 4000, height: 4000)
+        canvas.contentSize = largeContentSize
+
+        // Zero out insets
+        canvas.contentInset = .zero
+        canvas.scrollIndicatorInsets = .zero
 
         // Match zoom configuration of user canvas
         canvas.minimumZoomScale = 0.5
         canvas.maximumZoomScale = 3.0
         canvas.zoomScale = zoomScale
 
-        print("🎨 AI Canvas Layer created - non-interactive, zoom-synced")
+        // CRITICAL: Keep isScrollEnabled = TRUE to allow programmatic changes
+        // But disable ALL gesture recognizers to prevent user interaction
+        canvas.isScrollEnabled = true  // MUST be true for programmatic zoom/pan
+        canvas.panGestureRecognizer.isEnabled = false  // Disable user pan
+        canvas.pinchGestureRecognizer?.isEnabled = false  // Disable user pinch
+
+        // Disable ANY other gestures that might interfere
+        for recognizer in canvas.gestureRecognizers ?? [] {
+            recognizer.isEnabled = false
+        }
+
+        print("🎨 AI Canvas Layer created - gestures disabled, programmatic scroll ENABLED")
+        print("🎨 AI Canvas bounds: \(canvas.bounds)")
+        print("🎨 AI Canvas contentSize: \(canvas.contentSize)")
+        print("🎨 AI Canvas contentOffset: \(canvas.contentOffset)")
+        print("🎨 AI Canvas contentInset: \(canvas.contentInset)")
         return canvas
     }
 
     func updateUIView(_ canvas: PKCanvasView, context: Context) {
         // ALWAYS update drawing - comparison can be unreliable with PKDrawing
-        print("🎨 AICanvasLayer updateUIView - drawing has \(drawing.strokes.count) strokes")
         canvas.drawing = drawing
 
-        // Sync zoom and pan with user canvas
-        if abs(canvas.zoomScale - zoomScale) > 0.01 {
-            canvas.zoomScale = zoomScale
+        let currentZoom = canvas.zoomScale
+        let currentOffset = canvas.contentOffset
+        let targetZoom = zoomScale
+        let targetOffset = contentOffset
+
+        // FORCE sync zoom and pan - use setZoomScale:animated:false to bypass scroll view's animation logic
+        if abs(currentZoom - targetZoom) > 0.001 {
+            canvas.setZoomScale(zoomScale, animated: false)
         }
-        if canvas.contentOffset != contentOffset {
+
+        // FORCE contentOffset update
+        if abs(currentOffset.x - targetOffset.x) > 0.5 || abs(currentOffset.y - targetOffset.y) > 0.5 {
             canvas.contentOffset = contentOffset
         }
     }

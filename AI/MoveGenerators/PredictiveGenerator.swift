@@ -74,12 +74,9 @@ class PredictiveGenerator {
             style = roll < 0.5 ? .strongCurve : .spiral
         }
 
-        // Project forward from a position along the stroke
+        // Project forward from a position along the stroke using actual path
         let startT = avgVelocity > 250.0 ? CGFloat.random(in: 0.7...1.0) : CGFloat.random(in: 0.5...0.8)
-        let projectionStart = CGPoint(
-            x: userStroke.startPoint.x + (userStroke.endPoint.x - userStroke.startPoint.x) * startT,
-            y: userStroke.startPoint.y + (userStroke.endPoint.y - userStroke.startPoint.y) * startT
-        )
+        let projectionStart = userStroke.pointAt(fraction: startT)
 
         let end = CGPoint(
             x: projectionStart.x + projectionDistance * cos(direction),

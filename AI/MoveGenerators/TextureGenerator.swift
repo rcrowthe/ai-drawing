@@ -101,10 +101,11 @@ class TextureGenerator {
 
         // Generate SHORT parallel lines near the stroke
         for i in 0..<lineCount {
-            // Position along the user's stroke
+            // Position along the user's stroke using actual path
             let t = CGFloat(i) / CGFloat(lineCount - 1)
-            let baseX = stroke.startPoint.x + (stroke.endPoint.x - stroke.startPoint.x) * t
-            let baseY = stroke.startPoint.y + (stroke.endPoint.y - stroke.startPoint.y) * t
+            let basePoint = stroke.pointAt(fraction: t)
+            let baseX = basePoint.x
+            let baseY = basePoint.y
 
             // Offset slightly perpendicular
             let offset: CGFloat = 10.0
@@ -177,8 +178,9 @@ class TextureGenerator {
         for i in 0..<dotCount {
             // Position along the stroke with small perpendicular offset
             let t = CGFloat.random(in: 0...1)
-            let baseX = stroke.startPoint.x + (stroke.endPoint.x - stroke.startPoint.x) * t
-            let baseY = stroke.startPoint.y + (stroke.endPoint.y - stroke.startPoint.y) * t
+            let basePoint = stroke.pointAt(fraction: t)
+            let baseX = basePoint.x
+            let baseY = basePoint.y
 
             // Small random offset perpendicular to stroke
             let strokeAngle = atan2(

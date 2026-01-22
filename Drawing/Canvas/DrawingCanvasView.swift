@@ -18,6 +18,7 @@ struct DrawingCanvasView: UIViewRepresentable {
     var isTransparent: Bool = false  // New: supports transparent background for layering
     @Binding var zoomScale: CGFloat  // Synchronized zoom
     @Binding var contentOffset: CGPoint  // Synchronized pan
+    @Binding var canvasBounds: CGSize  // Canvas viewport size (reported to view model)
 
     func makeUIView(context: Context) -> PKCanvasView {
         print("🎨 DrawingCanvasView: makeUIView called")
@@ -42,14 +43,38 @@ struct DrawingCanvasView: UIViewRepresentable {
         canvas.allowsFingerDrawing = true  // Enable for simulator
         canvas.becomeFirstResponder()
 
+        // CRITICAL: Disable automatic content inset adjustments
+        canvas.contentInsetAdjustmentBehavior = .never
+        canvas.automaticallyAdjustsScrollIndicatorInsets = false
+
+        // Set a large explicit content size so canvas doesn't end early
+        let largeContentSize = CGSize(width: 4000, height: 4000)
+        canvas.contentSize = largeContentSize
+
+        // Center the content initially
+        // This will be overridden by zoomScale binding, but sets a good initial state
+        canvas.contentInset = .zero
+        canvas.scrollIndicatorInsets = .zero
+
         // Enable zoom - synchronized across layers
         canvas.minimumZoomScale = 0.5
         canvas.maximumZoomScale = 3.0
         canvas.zoomScale = zoomScale
 
+        // Set scroll view delegate for zoom/pan synchronization
+        // PKCanvasView is a UIScrollView subclass
+        context.coordinator.scrollViewDelegate = canvas
+        if let scrollView = canvas as? UIScrollView {
+            scrollView.delegate = context.coordinator
+        }
+
         print("🎨 Canvas setup complete - allowsFingerDrawing: \(canvas.allowsFingerDrawing)")
         print("🎨 Canvas drawingPolicy: \(canvas.drawingPolicy.rawValue)")
         print("🎨 Canvas zoom enabled - min: 0.5, max: 3.0, current: \(zoomScale)")
+        print("🎨 Canvas bounds: \(canvas.bounds)")
+        print("🎨 Canvas contentSize: \(canvas.contentSize)")
+        print("🎨 Canvas contentOffset: \(canvas.contentOffset)")
+        print("🎨 Canvas contentInset: \(canvas.contentInset)")
 
         return canvas
     }
@@ -63,13 +88,17 @@ struct DrawingCanvasView: UIViewRepresentable {
         // Update tool - always set to ensure it's correct
         canvas.tool = tool
 
-        // Sync zoom and pan from binding (from other canvas or programmatic changes)
-        if abs(canvas.zoomScale - zoomScale) > 0.01 {
-            canvas.zoomScale = zoomScale
+        // Report canvas bounds if changed
+        let newBounds = canvas.bounds.size
+        if newBounds != canvasBounds {
+            DispatchQueue.main.async {
+                self.canvasBounds = newBounds
+                print("📏 Canvas bounds updated: \(Int(newBounds.width))x\(Int(newBounds.height))")
+            }
         }
-        if canvas.contentOffset != contentOffset {
-            canvas.contentOffset = contentOffset
-        }
+
+        // DON'T update zoom/pan from binding - the user canvas DRIVES these values
+        // via scrollViewDidZoom/scrollViewDidScroll, so setting them here creates a feedback loop
     }
 
     func makeCoordinator() -> Coordinator {
@@ -83,7 +112,7 @@ struct DrawingCanvasView: UIViewRepresentable {
         )
     }
 
-    class Coordinator: NSObject, PKCanvasViewDelegate {
+    class Coordinator: NSObject, PKCanvasViewDelegate, UIScrollViewDelegate {
         @Binding var drawing: PKDrawing
         @Binding var zoomScale: CGFloat
         @Binding var contentOffset: CGPoint
@@ -93,6 +122,7 @@ struct DrawingCanvasView: UIViewRepresentable {
 
         private var previousStrokeCount = 0
         private var strokeCountWhenUserStartedDrawing = -1  // -1 means not in a user drawing session
+        weak var scrollViewDelegate: UIScrollView?  // Reference to canvas as scroll view
 
         init(
             drawing: Binding<PKDrawing>,
@@ -185,6 +215,18 @@ struct DrawingCanvasView: UIViewRepresentable {
                 self.zoomScale = canvasView.zoomScale
                 self.contentOffset = canvasView.contentOffset
             }
+        }
+
+        // MARK: - UIScrollViewDelegate (for real-time zoom/pan sync)
+
+        func scrollViewDidZoom(_ scrollView: UIScrollView) {
+            // Update binding immediately and synchronously when user zooms (pinch gesture)
+            zoomScale = scrollView.zoomScale
+        }
+
+        func scrollViewDidScroll(_ scrollView: UIScrollView) {
+            // Update binding immediately and synchronously when user pans
+            contentOffset = scrollView.contentOffset
         }
     }
 }

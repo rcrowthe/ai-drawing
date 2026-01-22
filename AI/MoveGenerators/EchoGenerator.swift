@@ -55,35 +55,47 @@ class EchoGenerator {
         // AMPLIFIED: Changed from *1.5 to *2.0 for stronger effect
         let pressureFactor = max(0.3, min(userStroke.avgPressure * 2.0, 3.0)) // Wider range: 0.3-3.0
 
-        let dx = userStroke.endPoint.x - userStroke.startPoint.x
-        let dy = userStroke.endPoint.y - userStroke.startPoint.y
-        let length = hypot(dx, dy)
-
-        guard length > 0 else {
-            print("🔊 EchoGenerator: ERROR - stroke length is 0")
-            return nil
-        }
-
-        // Perpendicular offset direction
-        let perpX = -dy / length
-        let perpY = dx / length
-
         var controlPoints: [PKStrokePoint] = []
         let segments = GeneratorParameters.Echo.segments
 
-        for i in 0...segments {
-            let t = CGFloat(i) / CGFloat(segments)
+        // Sample actual points from the stroke path instead of interpolating
+        let pathPoints = userStroke.samplePathPoints(count: segments + 1)
 
-            // Base position along stroke
-            let baseX = userStroke.startPoint.x + dx * t
-            let baseY = userStroke.startPoint.y + dy * t
+        // CRITICAL: Use actual returned point count, not requested count
+        let actualSegments = pathPoints.count - 1
+        guard actualSegments > 0 else {
+            print("🔊 EchoGenerator: ERROR - not enough path points")
+            return nil
+        }
+
+        for i in 0...actualSegments {
+            let t = CGFloat(i) / CGFloat(actualSegments)
+            let basePoint = pathPoints[i]
+
+            // Calculate local perpendicular direction at this point
+            let prevPoint = i > 0 ? pathPoints[i - 1] : pathPoints[i]
+            let nextPoint = i < actualSegments ? pathPoints[i + 1] : pathPoints[i]
+
+            let dx = nextPoint.x - prevPoint.x
+            let dy = nextPoint.y - prevPoint.y
+            let localLength = hypot(dx, dy)
+
+            // Default perpendicular if degenerate
+            var perpX: CGFloat = 0
+            var perpY: CGFloat = 1
+
+            if localLength > 0.1 {
+                // Perpendicular direction to local tangent
+                perpX = -dy / localLength
+                perpY = dx / localLength
+            }
 
             // Add wave variation (responsive to stroke energy)
             let wave = sin(t * .pi * 2) * waveAmplitude
             let currentOffset = finalOffset + wave
 
-            let x = baseX + perpX * currentOffset
-            let y = baseY + perpY * currentOffset
+            let x = basePoint.x + perpX * currentOffset
+            let y = basePoint.y + perpY * currentOffset
 
             // PRESSURE RESPONSE: High pressure strokes get thicker echoes
             // But NEVER below minimum visible thickness (3.5)
