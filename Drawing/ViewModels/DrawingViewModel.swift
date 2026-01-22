@@ -476,11 +476,12 @@ class DrawingViewModel: ObservableObject {
 
         // PERFORMANCE: Process batched animation completions
         if !completedAnimationsBuffer.isEmpty {
+            let batchCount = completedAnimationsBuffer.count
             for animationID in completedAnimationsBuffer {
                 animatingStrokes.removeValue(forKey: animationID)
             }
             completedAnimationsBuffer.removeAll()
-            print("🎬 Processed \(completedAnimationsBuffer.count) completed animations in batch")
+            print("🎬 Processed \(batchCount) completed animations in batch")
         }
 
         // Check if there are any active animations
@@ -516,9 +517,13 @@ class DrawingViewModel: ObservableObject {
     private func updateAIDrawingWithAnimations() {
         let updateStart = Date()
 
-        // PERFORMANCE OPTIMIZATION: Only rebuild base drawing when AI stroke count changes
-        let currentAIStrokeCount = currentSession.strokes.filter { $0.source == .ai }.count
-        if cachedAIStrokeCount != currentAIStrokeCount {
+        // PERFORMANCE OPTIMIZATION: Only rebuild base drawing when COMPLETED stroke count changes
+        // (Don't count strokes that are currently animating)
+        let completedAIStrokeCount = currentSession.strokes.filter { stroke in
+            stroke.source == .ai && !currentlyAnimatingStrokeIDs.contains(stroke.id)
+        }.count
+
+        if cachedAIStrokeCount != completedAIStrokeCount {
             rebuildCachedCompletedDrawing()
         }
 
@@ -591,9 +596,12 @@ class DrawingViewModel: ObservableObject {
         }
 
         cachedCompletedDrawing = drawing
-        cachedAIStrokeCount = currentSession.strokes.filter { $0.source == .ai }.count
+        // Only count non-animating strokes
+        cachedAIStrokeCount = currentSession.strokes.filter { stroke in
+            stroke.source == .ai && !currentlyAnimatingStrokeIDs.contains(stroke.id)
+        }.count
 
-        print("📊 Rebuilt cached drawing: \(drawing.strokes.count) completed AI strokes")
+        print("📊 Rebuilt cached drawing: \(drawing.strokes.count) completed AI strokes (not counting \(currentlyAnimatingStrokeIDs.count) animating)")
     }
 
     private func createPartialStroke(from fullStroke: PKStroke, progress: CGFloat) -> PKStroke? {
